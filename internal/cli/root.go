@@ -38,6 +38,7 @@ func NewRoot() *cobra.Command {
 		newLogCmd(),
 		newRollbackCmd(),
 		newVersionCmd(),
+		newCostCmd(),
 	)
 	return root
 }

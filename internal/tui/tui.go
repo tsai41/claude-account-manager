@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -15,6 +16,16 @@ import (
 	"github.com/tsai41/claude-account-manager/internal/usage"
 )
 
+type tabID int
+
+const (
+	tabProfiles tabID = iota
+	tabCosts
+	tabActivity
+)
+
+var tabNames = []string{"Profiles", "Costs", "Activity"}
+
 type viewMode int
 
 const (
@@ -22,17 +33,25 @@ const (
 	modeConfirmDelete
 	modeEditNote
 	modeEditUsage
-	modeStats
 )
 
 var (
-	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
-	helpStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
-	errStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
+	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	statusStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
+	errStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	tabStyle      = lipgloss.NewStyle().Padding(0, 2).Foreground(lipgloss.Color("245"))
+	activeTabStyle = lipgloss.NewStyle().
+			Padding(0, 2).
+			Bold(true).
+			Foreground(lipgloss.Color("231")).
+			Background(lipgloss.Color("99"))
+	costAmountStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("46"))
+	subStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
 )
 
 type Model struct {
+	tab       tabID
 	table     table.Model
 	mode      viewMode
 	status    string
@@ -43,6 +62,8 @@ type Model struct {
 	usageFor  string
 	delFor    string
 	current   string
+	costs     jsonlscan.CostStats
+	costsErr  error
 	stats     jsonlscan.Activity
 	statsErr  error
 }
@@ -124,6 +145,14 @@ func (m *Model) reload() error {
 	return nil
 }
 
+func (m *Model) loadCosts() {
+	m.costs, m.costsErr = jsonlscan.ScanCosts()
+}
+
+func (m *Model) loadActivity() {
+	m.stats, m.statsErr = jsonlscan.Scan()
+}
+
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) currentRowName() string {
@@ -135,6 +164,41 @@ func (m Model) currentRowName() string {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Global tab switching keys (only outside text-input modes)
+	if k, ok := msg.(tea.KeyMsg); ok && m.mode != modeEditNote && m.mode != modeEditUsage {
+		switch k.String() {
+		case "tab", "right", "l":
+			if m.mode == modeTable {
+				m.tab = (m.tab + 1) % tabID(len(tabNames))
+				m.lazyLoadTab()
+				return m, nil
+			}
+		case "shift+tab", "left", "h":
+			if m.mode == modeTable {
+				m.tab = (m.tab + tabID(len(tabNames)) - 1) % tabID(len(tabNames))
+				m.lazyLoadTab()
+				return m, nil
+			}
+		case "1":
+			if m.mode == modeTable {
+				m.tab = tabProfiles
+				return m, nil
+			}
+		case "2":
+			if m.mode == modeTable {
+				m.tab = tabCosts
+				m.lazyLoadTab()
+				return m, nil
+			}
+		case "3":
+			if m.mode == modeTable {
+				m.tab = tabActivity
+				m.lazyLoadTab()
+				return m, nil
+			}
+		}
+	}
+
 	switch m.mode {
 	case modeConfirmDelete:
 		return m.updateConfirmDelete(msg)
@@ -142,36 +206,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateEditNote(msg)
 	case modeEditUsage:
 		return m.updateEditUsage(msg)
-	case modeStats:
-		return m.updateStats(msg)
 	}
-	return m.updateTable(msg)
-}
 
-func (m Model) updateStats(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyMsg); ok {
-		switch k.String() {
-		case "esc", "q", "s", "enter":
-			m.mode = modeTable
-			return m, nil
-		case "r":
-			m.stats, m.statsErr = jsonlscan.Scan()
-			return m, nil
-		}
+	switch m.tab {
+	case tabProfiles:
+		return m.updateProfilesTab(msg)
+	case tabCosts:
+		return m.updateCostsTab(msg)
+	case tabActivity:
+		return m.updateActivityTab(msg)
 	}
 	return m, nil
 }
 
-func (m Model) updateTable(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) lazyLoadTab() {
+	switch m.tab {
+	case tabCosts:
+		if m.costs.Today.Window == "" && m.costsErr == nil {
+			m.loadCosts()
+		}
+	case tabActivity:
+		if m.stats.LastActive.IsZero() && m.statsErr == nil {
+			m.loadActivity()
+		}
+	}
+}
+
+func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
-		case "j":
+		case "j", "down":
 			m.table.MoveDown(1)
 			return m, nil
-		case "k":
+		case "k", "up":
 			m.table.MoveUp(1)
 			return m, nil
 		case "enter":
@@ -237,17 +307,41 @@ func (m Model) updateTable(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errMsg = ""
 			m.status = ""
 			return m, nil
-		case "s":
-			m.stats, m.statsErr = jsonlscan.Scan()
-			m.mode = modeStats
-			m.errMsg = ""
-			m.status = ""
-			return m, nil
 		}
 	}
 	var cmd tea.Cmd
 	m.table, cmd = m.table.Update(msg)
 	return m, cmd
+}
+
+func (m Model) updateCostsTab(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch k.String() {
+		case "q", "ctrl+c", "esc":
+			return m, tea.Quit
+		case "r":
+			m.loadCosts()
+			m.status = "Costs refreshed"
+			m.errMsg = ""
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+func (m Model) updateActivityTab(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch k.String() {
+		case "q", "ctrl+c", "esc":
+			return m, tea.Quit
+		case "r":
+			m.loadActivity()
+			m.status = "Activity refreshed"
+			m.errMsg = ""
+			return m, nil
+		}
+	}
+	return m, nil
 }
 
 func (m Model) updateConfirmDelete(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -325,9 +419,23 @@ func (m Model) updateEditNote(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) renderTabs() string {
+	var parts []string
+	for i, name := range tabNames {
+		if tabID(i) == m.tab {
+			parts = append(parts, activeTabStyle.Render(fmt.Sprintf("%d %s", i+1, name)))
+		} else {
+			parts = append(parts, tabStyle.Render(fmt.Sprintf("%d %s", i+1, name)))
+		}
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+}
+
 func (m Model) View() string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("ccm — Claude account manager"))
+	b.WriteString("\n")
+	b.WriteString(m.renderTabs())
 	b.WriteString("\n\n")
 
 	switch m.mode {
@@ -347,28 +455,21 @@ func (m Model) View() string {
 		b.WriteString(m.usageIn.View())
 		b.WriteString("\n")
 		b.WriteString(helpStyle.Render("Tip: \"session 42%, weekly 68%\" parses both fields."))
-	case modeStats:
-		b.WriteString(titleStyle.Render("Local activity (machine-wide, from ~/.claude/projects/*.jsonl)"))
-		b.WriteString("\n\n")
-		if m.statsErr != nil {
-			b.WriteString(errStyle.Render("scan error: " + m.statsErr.Error()))
-		} else {
-			s := m.stats
-			b.WriteString(fmt.Sprintf("Last 5 hours : %6d turns\n", s.Last5Hours))
-			b.WriteString(fmt.Sprintf("Today (24h)  : %6d turns  (%d session(s))\n", s.Today, s.Sessions))
-			b.WriteString(fmt.Sprintf("Last 7 days  : %6d turns\n", s.Last7Days))
-			if !s.LastActive.IsZero() {
-				b.WriteString(fmt.Sprintf("Last active  : %s\n", s.LastActive.Format("2006-01-02 15:04:05")))
-			}
-			b.WriteString("\n")
-			b.WriteString(helpStyle.Render("Note: jsonl transcripts have no per-account binding;\nthese counts are machine-wide and not the official usage bar."))
-		}
-		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("r refresh  Esc/q/s/Enter back"))
 	default:
-		b.WriteString(m.table.View())
-		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("j/k move  Enter switch  s stats  r refresh  e edit-usage  u edit-note  d delete  q quit"))
+		switch m.tab {
+		case tabProfiles:
+			b.WriteString(m.table.View())
+			b.WriteString("\n\n")
+			b.WriteString(helpStyle.Render("Tab/1-3 switch tab  j/k move  Enter switch  e edit-usage  u edit-note  d delete  r refresh  q quit"))
+		case tabCosts:
+			b.WriteString(m.viewCosts())
+			b.WriteString("\n")
+			b.WriteString(helpStyle.Render("Tab cycle tabs  r refresh  q quit"))
+		case tabActivity:
+			b.WriteString(m.viewActivity())
+			b.WriteString("\n")
+			b.WriteString(helpStyle.Render("Tab cycle tabs  r refresh  q quit"))
+		}
 	}
 
 	if m.status != "" {
@@ -380,6 +481,113 @@ func (m Model) View() string {
 		b.WriteString(errStyle.Render("error: " + m.errMsg))
 	}
 	return b.String()
+}
+
+func (m Model) viewCosts() string {
+	if m.costsErr != nil {
+		return errStyle.Render("scan error: " + m.costsErr.Error())
+	}
+	c := m.costs
+	var b strings.Builder
+	b.WriteString(subStyle.Render("Today (machine-wide, list-price estimate)"))
+	b.WriteString("\n")
+	b.WriteString(costAmountStyle.Render(fmt.Sprintf("$%.2f", c.Today.Cost)))
+	b.WriteString(fmt.Sprintf("   %d turns   %s tokens   %d sessions   active %s",
+		c.Today.Turns, humanTokensTUI(c.Today.Tokens.Total()),
+		c.Today.Sessions, formatDurationTUI(c.Today.ActiveDur)))
+	b.WriteString("\n")
+	for _, fb := range c.Today.ByFamily {
+		b.WriteString(fmt.Sprintf("  %-8s  %5d turns  %8s  $%.2f\n",
+			fb.Family, fb.Turns, humanTokensTUI(fb.Tokens.Total()), fb.Cost))
+	}
+	b.WriteString("\n")
+	b.WriteString(subStyle.Render("Last 7 days  : "))
+	b.WriteString(fmt.Sprintf("$%.2f  (%d turns, %s tokens)\n",
+		c.Last7.Cost, c.Last7.Turns, humanTokensTUI(c.Last7.Tokens.Total())))
+	b.WriteString(subStyle.Render("Last 30 days : "))
+	b.WriteString(fmt.Sprintf("$%.2f  (%d turns, %s tokens)\n",
+		c.Last30.Cost, c.Last30.Turns, humanTokensTUI(c.Last30.Tokens.Total())))
+
+	if len(c.Last30.DailyTotals) > 0 {
+		b.WriteString("\n")
+		b.WriteString(subStyle.Render("Daily history:\n"))
+		max := 0.0
+		for _, d := range c.Last30.DailyTotals {
+			if d.Cost > max {
+				max = d.Cost
+			}
+		}
+		shown := c.Last30.DailyTotals
+		if len(shown) > 10 {
+			shown = shown[:10]
+		}
+		for _, d := range shown {
+			bar := bar20(d.Cost, max)
+			b.WriteString(fmt.Sprintf("  %s  $%-9.2f %s  %s\n",
+				d.Date, d.Cost, bar, strings.Join(d.Families, ",")))
+		}
+	}
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Pricing: Opus $15/$75, Sonnet $3/$15, Haiku $1/$5 per 1M (in/out); cache adjusted. Not an invoice."))
+	return b.String()
+}
+
+func (m Model) viewActivity() string {
+	if m.statsErr != nil {
+		return errStyle.Render("scan error: " + m.statsErr.Error())
+	}
+	s := m.stats
+	var b strings.Builder
+	b.WriteString(subStyle.Render("Local activity (machine-wide, from ~/.claude/projects/*.jsonl)"))
+	b.WriteString("\n\n")
+	b.WriteString(fmt.Sprintf("Last 5 hours : %6d turns\n", s.Last5Hours))
+	b.WriteString(fmt.Sprintf("Today (24h)  : %6d turns  (%d session(s))\n", s.Today, s.Sessions))
+	b.WriteString(fmt.Sprintf("Last 7 days  : %6d turns\n", s.Last7Days))
+	if !s.LastActive.IsZero() {
+		b.WriteString(fmt.Sprintf("Last active  : %s\n", s.LastActive.Format("2006-01-02 15:04:05")))
+	}
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Note: jsonl transcripts have no per-account binding;\nthese counts are machine-wide and not the official usage bar."))
+	return b.String()
+}
+
+func humanTokensTUI(n int64) string {
+	switch {
+	case n < 1000:
+		return fmt.Sprintf("%d", n)
+	case n < 1_000_000:
+		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	case n < 1_000_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	default:
+		return fmt.Sprintf("%.1fB", float64(n)/1_000_000_000)
+	}
+}
+
+func formatDurationTUI(d time.Duration) string {
+	if d <= 0 {
+		return "0m"
+	}
+	h := int(d / time.Hour)
+	m := int((d % time.Hour) / time.Minute)
+	if h == 0 {
+		return fmt.Sprintf("%dm", m)
+	}
+	return fmt.Sprintf("%dh %dm", h, m)
+}
+
+func bar20(v, max float64) string {
+	if max <= 0 {
+		return strings.Repeat(" ", 20)
+	}
+	n := int((v / max) * 20)
+	if n < 0 {
+		n = 0
+	}
+	if n > 20 {
+		n = 20
+	}
+	return strings.Repeat("█", n) + strings.Repeat(" ", 20-n)
 }
 
 func Run() error {
