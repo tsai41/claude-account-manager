@@ -13,14 +13,13 @@ Phase 1 (MVP). Switch strategy: full-restore.
 ## Build / install
 
 ```sh
-# build local binary
-go build -o ccm ./cmd/ccm
-
-# or install to $(go env GOPATH)/bin (default: ~/go/bin)
-go install ./cmd/ccm
+make build          # local ./ccm
+make install        # to $(go env GOPATH)/bin
+make symlink        # additionally symlink to /usr/local/bin (sudo)
+make uninstall      # remove both
 ```
 
-Make sure `$(go env GOPATH)/bin` is on your `PATH`.
+Make sure `$(go env GOPATH)/bin` is on your `PATH`, or use `make symlink` to expose `ccm` under `/usr/local/bin`.
 
 ## Quick start
 
