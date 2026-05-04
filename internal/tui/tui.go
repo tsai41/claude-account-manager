@@ -31,6 +31,7 @@ type viewMode int
 const (
 	modeTable viewMode = iota
 	modeConfirmDelete
+	modeConfirmSwitch
 	modeEditNote
 	modeEditUsage
 )
@@ -86,11 +87,36 @@ type Model struct {
 	usageIn   textinput.Model
 	usageFor  string
 	delFor    string
+	confirmSwitch string
 	current   string
 	costs     jsonlscan.CostStats
 	costsErr  error
+	costsLoading bool
 	stats     jsonlscan.Activity
 	statsErr  error
+	statsLoading bool
+}
+
+type costsLoadedMsg struct {
+	cs  jsonlscan.CostStats
+	err error
+}
+type statsLoadedMsg struct {
+	a   jsonlscan.Activity
+	err error
+}
+
+func loadCostsCmd() tea.Cmd {
+	return func() tea.Msg {
+		cs, err := jsonlscan.ScanCosts()
+		return costsLoadedMsg{cs: cs, err: err}
+	}
+}
+func loadStatsCmd() tea.Cmd {
+	return func() tea.Msg {
+		a, err := jsonlscan.Scan()
+		return statsLoadedMsg{a: a, err: err}
+	}
 }
 
 func New() (Model, error) {
@@ -170,15 +196,21 @@ func (m *Model) reload() error {
 	return nil
 }
 
-func (m *Model) loadCosts() {
-	m.costs, m.costsErr = jsonlscan.ScanCosts()
+// loadCostsAsync returns a Cmd that triggers a background scan; results arrive via costsLoadedMsg.
+func (m *Model) loadCostsAsync() tea.Cmd {
+	if m.costsLoading {
+		return nil
+	}
+	m.costsLoading = true
+	return loadCostsCmd()
 }
 
-func (m *Model) loadActivity() {
-	m.stats, m.statsErr = jsonlscan.Scan()
-	if m.costs.Today.Window == "" && m.costsErr == nil {
-		m.loadCosts()
+func (m *Model) loadStatsAsync() tea.Cmd {
+	if m.statsLoading {
+		return nil
 	}
+	m.statsLoading = true
+	return loadStatsCmd()
 }
 
 func (m Model) Init() tea.Cmd { return nil }
@@ -192,20 +224,32 @@ func (m Model) currentRowName() string {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Async scan results
+	switch msg := msg.(type) {
+	case costsLoadedMsg:
+		m.costs = msg.cs
+		m.costsErr = msg.err
+		m.costsLoading = false
+		return m, nil
+	case statsLoadedMsg:
+		m.stats = msg.a
+		m.statsErr = msg.err
+		m.statsLoading = false
+		return m, nil
+	}
+
 	// Global tab switching keys (only outside text-input modes)
 	if k, ok := msg.(tea.KeyMsg); ok && m.mode != modeEditNote && m.mode != modeEditUsage {
 		switch k.String() {
 		case "tab", "right", "l":
 			if m.mode == modeTable {
 				m.tab = (m.tab + 1) % tabID(len(tabNames))
-				m.lazyLoadTab()
-				return m, nil
+				return m, m.lazyLoadTab()
 			}
 		case "shift+tab", "left", "h":
 			if m.mode == modeTable {
 				m.tab = (m.tab + tabID(len(tabNames)) - 1) % tabID(len(tabNames))
-				m.lazyLoadTab()
-				return m, nil
+				return m, m.lazyLoadTab()
 			}
 		case "1":
 			if m.mode == modeTable {
@@ -215,14 +259,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "2":
 			if m.mode == modeTable {
 				m.tab = tabCosts
-				m.lazyLoadTab()
-				return m, nil
+				return m, m.lazyLoadTab()
 			}
 		case "3":
 			if m.mode == modeTable {
 				m.tab = tabActivity
-				m.lazyLoadTab()
-				return m, nil
+				return m, m.lazyLoadTab()
 			}
 		}
 	}
@@ -230,6 +272,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case modeConfirmDelete:
 		return m.updateConfirmDelete(msg)
+	case modeConfirmSwitch:
+		return m.updateConfirmSwitch(msg)
 	case modeEditNote:
 		return m.updateEditNote(msg)
 	case modeEditUsage:
@@ -247,17 +291,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) lazyLoadTab() {
+func (m *Model) lazyLoadTab() tea.Cmd {
 	switch m.tab {
 	case tabCosts:
-		if m.costs.Today.Window == "" && m.costsErr == nil {
-			m.loadCosts()
+		if m.costs.Today.Window == "" && m.costsErr == nil && !m.costsLoading {
+			return m.loadCostsAsync()
 		}
 	case tabActivity:
-		if m.stats.LastActive.IsZero() && m.statsErr == nil {
-			m.loadActivity()
+		var cmds []tea.Cmd
+		if m.stats.LastActive.IsZero() && m.statsErr == nil && !m.statsLoading {
+			cmds = append(cmds, m.loadStatsAsync())
 		}
+		if m.costs.Today.Window == "" && m.costsErr == nil && !m.costsLoading {
+			cmds = append(cmds, m.loadCostsAsync())
+		}
+		return tea.Batch(cmds...)
 	}
+	return nil
 }
 
 func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -281,15 +331,10 @@ func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.status = fmt.Sprintf("Already on %s", name)
 				return m, nil
 			}
-			res, err := switcher.Switch(name)
-			if err != nil {
-				m.errMsg = err.Error()
-				m.status = ""
-				return m, nil
-			}
+			m.confirmSwitch = name
+			m.mode = modeConfirmSwitch
 			m.errMsg = ""
-			m.status = fmt.Sprintf("Switched to %s (fp=%s, backup=%s)", res.Profile.Name, res.TokenFP, res.BackupDir)
-			_ = m.reload()
+			m.status = ""
 			return m, nil
 		case "r":
 			if err := m.reload(); err != nil {
@@ -348,10 +393,12 @@ func (m Model) updateCostsTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		case "r":
-			m.loadCosts()
-			m.status = "Costs refreshed"
+			m.costs = jsonlscan.CostStats{}
+			m.costsErr = nil
+			cmd := m.loadCostsAsync()
+			m.status = "Refreshing costs..."
 			m.errMsg = ""
-			return m, nil
+			return m, cmd
 		}
 	}
 	return m, nil
@@ -363,9 +410,39 @@ func (m Model) updateActivityTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		case "r":
-			m.loadActivity()
-			m.status = "Activity refreshed"
+			m.stats = jsonlscan.Activity{}
+			m.statsErr = nil
+			m.costs = jsonlscan.CostStats{}
+			m.costsErr = nil
+			cmd := tea.Batch(m.loadStatsAsync(), m.loadCostsAsync())
+			m.status = "Refreshing..."
 			m.errMsg = ""
+			return m, cmd
+		}
+	}
+	return m, nil
+}
+
+func (m Model) updateConfirmSwitch(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch strings.ToLower(k.String()) {
+		case "y", "enter":
+			name := m.confirmSwitch
+			m.confirmSwitch = ""
+			m.mode = modeTable
+			res, err := switcher.Switch(name)
+			if err != nil {
+				m.errMsg = err.Error()
+				m.status = ""
+				return m, nil
+			}
+			m.errMsg = ""
+			m.status = fmt.Sprintf("Switched to %s (fp=%s, backup=%s)", res.Profile.Name, res.TokenFP, res.BackupDir)
+			_ = m.reload()
+			return m, nil
+		case "n", "esc", "q":
+			m.confirmSwitch = ""
+			m.mode = modeTable
 			return m, nil
 		}
 	}
@@ -471,6 +548,10 @@ func (m Model) View() string {
 		b.WriteString(m.table.View())
 		b.WriteString("\n\n")
 		b.WriteString(errStyle.Render(fmt.Sprintf("Delete profile %q? (y/N) ", m.delFor)))
+	case modeConfirmSwitch:
+		b.WriteString(m.table.View())
+		b.WriteString("\n\n")
+		b.WriteString(statusStyle.Render(fmt.Sprintf("Switch to profile %q? (Y/n) ", m.confirmSwitch)))
 	case modeEditNote:
 		b.WriteString(m.table.View())
 		b.WriteString("\n\n")
@@ -514,6 +595,9 @@ func (m Model) View() string {
 func (m Model) viewCosts() string {
 	if m.costsErr != nil {
 		return errStyle.Render("scan error: " + m.costsErr.Error())
+	}
+	if m.costs.Today.Window == "" {
+		return dimStyle.Render("Loading costs… (scanning ~/.claude/projects/*.jsonl)")
 	}
 	c := m.costs
 	var b strings.Builder
@@ -611,6 +695,9 @@ func padLeft(s string, w int) string {
 func (m Model) viewActivity() string {
 	if m.statsErr != nil {
 		return errStyle.Render("scan error: " + m.statsErr.Error())
+	}
+	if m.stats.LastActive.IsZero() && m.statsLoading {
+		return dimStyle.Render("Loading activity… (scanning ~/.claude/projects/*.jsonl)")
 	}
 	s := m.stats
 	c := m.costs

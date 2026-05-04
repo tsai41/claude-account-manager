@@ -49,6 +49,20 @@ ccm use work                  # CLI switch (safe-merge by default)
 | `ccm doctor` | diagnostics including fingerprint duplicate detection |
 | `ccm tui` | interactive TUI |
 | `ccm version` | version info |
+| `ccm completion <bash\|zsh\|fish\|powershell>` | print shell completion script |
+
+## Shell completion
+
+```sh
+# zsh (one-shot session)
+source <(ccm completion zsh)
+
+# zsh (persistent — install to fpath)
+ccm completion zsh > "${fpath[1]}/_ccm"
+
+# bash
+ccm completion bash > /usr/local/etc/bash_completion.d/ccm
+```
 
 ## TUI
 
@@ -58,7 +72,7 @@ Tabs (top of screen): **1 Profiles**, **2 Costs**, **3 Activity**.
 |---|---|
 | `Tab` / `←` `→` / `1` `2` `3` | switch tab |
 | `j` / `k` | move row (Profiles tab) |
-| `Enter` | switch to selected profile |
+| `Enter` | switch to selected profile (asks Y/n confirmation) |
 | `e` | edit usage value |
 | `u` | edit note |
 | `d` | delete profile (`y`/`N` confirm) |
