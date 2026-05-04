@@ -580,7 +580,7 @@ func (m Model) viewCosts() string {
 		}
 		for _, d := range shown {
 			bar := bar20(d.Cost, max)
-			date := d.Date[5:] // MM-DD
+			date := strings.Replace(d.Date[5:], "-", "/", 1) // MM-DD
 			fams := strings.Join(d.Families, ",")
 			line := fmt.Sprintf("  %s   $%-8.2f  %s  %s", date, d.Cost, bar, dimStyle.Render(fams))
 			if d.Date == today {
@@ -679,9 +679,9 @@ func (m Model) viewActivity() string {
 		today := time.Now().Format("2006-01-02")
 		for _, d := range shown {
 			bar := barInt(d.Turns, max, 24)
-			line := fmt.Sprintf("  %s   %5d turns  %s", d.Date[5:], d.Turns, bar)
+			line := fmt.Sprintf("  %s   %5d turns  %s", strings.Replace(d.Date[5:], "-", "/", 1), d.Turns, bar)
 			if d.Date == today {
-				line = todayRow.Render(fmt.Sprintf("▶ %s   %5d turns  ", d.Date[5:], d.Turns)) + bar
+				line = todayRow.Render(fmt.Sprintf("▶ %s   %5d turns  ", strings.Replace(d.Date[5:], "-", "/", 1), d.Turns)) + bar
 			}
 			b.WriteString(line)
 			b.WriteString("\n")
