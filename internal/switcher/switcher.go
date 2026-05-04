@@ -7,6 +7,7 @@ import (
 
 	"github.com/tsai41/claude-account-manager/internal/claudeauth"
 	"github.com/tsai41/claude-account-manager/internal/keychain"
+	"github.com/tsai41/claude-account-manager/internal/logger"
 	"github.com/tsai41/claude-account-manager/internal/profile"
 	"github.com/tsai41/claude-account-manager/internal/snapshot"
 )
@@ -24,8 +25,10 @@ type Result struct {
 func Switch(name string) (Result, error) {
 	target, err := profile.Load(name)
 	if err != nil {
+		logger.Error("switch", name, "profile load failed", map[string]any{"err": err.Error()})
 		return Result{}, err
 	}
+	logger.Info("switch.start", name, "switching profile", nil)
 	st, _ := profile.LoadState()
 
 	liveTok, liveErr := keychain.ReadLive()
@@ -82,13 +85,24 @@ func Switch(name string) (Result, error) {
 		return Result{}, err
 	}
 
-	return Result{
+	res := Result{
 		Profile:      target,
 		BackupDir:    bkDir,
 		TokenFP:      keychain.Fingerprint(token),
 		LiveEmail:    meta.Email,
 		EmailMatches: target.Email == "" || meta.Email == "" || meta.Email == target.Email,
-	}, nil
+	}
+	logger.Info("switch.done", name, "switch complete", map[string]any{
+		"backup_dir":    bkDir,
+		"token_fp":      res.TokenFP,
+		"live_email":    meta.Email,
+		"email_matches": res.EmailMatches,
+	})
+	if !res.EmailMatches {
+		logger.Warn("switch.email_mismatch", name, "post-switch email differs from profile email",
+			map[string]any{"profile_email": target.Email, "live_email": meta.Email})
+	}
+	return res, nil
 }
 
 // Remove deletes a profile and its keychain backup. If the profile was current, clears state.
@@ -97,6 +111,7 @@ func Remove(name string, keepKeychain bool) error {
 		return fmt.Errorf("profile %q not found", name)
 	}
 	if err := profile.Delete(name); err != nil {
+		logger.Error("remove", name, "profile delete failed", map[string]any{"err": err.Error()})
 		return err
 	}
 	if !keepKeychain {
@@ -107,5 +122,6 @@ func Remove(name string, keepKeychain bool) error {
 		st.CurrentProfile = ""
 		_ = profile.SaveState(st)
 	}
+	logger.Info("remove", name, "profile removed", map[string]any{"keep_keychain": keepKeychain})
 	return nil
 }

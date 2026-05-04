@@ -8,6 +8,7 @@ import (
 
 	"github.com/tsai41/claude-account-manager/internal/claudeauth"
 	"github.com/tsai41/claude-account-manager/internal/keychain"
+	"github.com/tsai41/claude-account-manager/internal/logger"
 	"github.com/tsai41/claude-account-manager/internal/paths"
 	"github.com/tsai41/claude-account-manager/internal/profile"
 	"github.com/tsai41/claude-account-manager/internal/snapshot"
@@ -108,5 +109,11 @@ func runImportCurrent(name string, force bool) error {
 	fmt.Printf("Token fp: %s\n", keychain.Fingerprint(token))
 	fmt.Printf("Snapshot: %s\n", snap.Dir)
 	fmt.Println("Usage: not set — `ccm usage-set` to record manually")
+	logger.Info("import-current", name, "profile imported", map[string]any{
+		"email":     meta.Email,
+		"token_fp":  keychain.Fingerprint(token),
+		"snapshot":  snap.ID,
+		"force":     force,
+	})
 	return nil
 }

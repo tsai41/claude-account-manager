@@ -84,6 +84,12 @@ func runDoctor() error {
 		add(check{"profiles directory", false, perr.Error(), ""})
 	} else {
 		add(check{"profiles directory", true, fmt.Sprintf("%d profile(s)", len(profs)), ""})
+		fps := make(map[string]string) // fp -> profile name (first seen)
+		liveFP := ""
+		if tok != "" {
+			liveFP = keychain.Fingerprint(tok)
+		}
+		st, _ := profile.LoadState()
 		for _, p := range profs {
 			snapDir, _ := snapshot.Latest(p.Name)
 			if snapDir == "" {
@@ -91,10 +97,46 @@ func runDoctor() error {
 			} else {
 				add(check{"profile " + p.Name + " snapshot", true, snapDir, ""})
 			}
-			if _, err := keychain.ReadBackup(p.Name); err != nil {
-				add(check{"profile " + p.Name + " keychain backup", false, err.Error(), "Re-run `ccm import-current --force " + p.Name + "`"})
+			bkTok, berr := keychain.ReadBackup(p.Name)
+			if berr != nil {
+				add(check{"profile " + p.Name + " keychain backup", false, berr.Error(), "Re-run `ccm import-current --force " + p.Name + "`"})
+				continue
+			}
+			fp := keychain.Fingerprint(bkTok)
+			add(check{"profile " + p.Name + " keychain backup", true, "fp=" + fp, ""})
+			if fp != "" {
+				if other, dup := fps[fp]; dup {
+					add(check{
+						"fingerprint duplicate",
+						false,
+						fmt.Sprintf("profiles %q and %q share token fp %s", other, p.Name, fp),
+						"Re-run `ccm import-current --force <name>` for the offending profile while logged in as the correct account.",
+					})
+				} else {
+					fps[fp] = p.Name
+				}
+			}
+		}
+		// CHECK 2: live token vs current profile's backup
+		if liveFP != "" && st.CurrentProfile != "" {
+			if currentProfileFP, ok := fps[liveFP]; ok {
+				if currentProfileFP == st.CurrentProfile {
+					add(check{"live token matches current profile", true, "fp=" + liveFP, ""})
+				} else {
+					add(check{
+						"live token vs current profile",
+						false,
+						fmt.Sprintf("live fp matches profile %q but current is %q (state desync)", currentProfileFP, st.CurrentProfile),
+						"Run `ccm use " + currentProfileFP + "` or `ccm use " + st.CurrentProfile + "` to resync.",
+					})
+				}
 			} else {
-				add(check{"profile " + p.Name + " keychain backup", true, "ok", ""})
+				add(check{
+					"live token vs backups",
+					false,
+					"live fp matches no backup (Claude CLI may have refreshed the token)",
+					"Run `ccm import-current --force " + st.CurrentProfile + "` to refresh the backup.",
+				})
 			}
 		}
 	}
