@@ -16,12 +16,16 @@ type Field struct {
 }
 
 type Record struct {
-	Provider  string    `json:"provider"`
-	Session   Field     `json:"session"`
-	Weekly    Field     `json:"weekly"`
-	Manual    string    `json:"manual,omitempty"`
-	Note      string    `json:"note,omitempty"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Provider      string    `json:"provider"`
+	Session       Field     `json:"session"`
+	Weekly        Field     `json:"weekly"`
+	Manual        string    `json:"manual,omitempty"`
+	Note          string    `json:"note,omitempty"`
+	ActivityToday int       `json:"activity_today,omitempty"`
+	Activity7d    int       `json:"activity_7d,omitempty"`
+	Activity5h    int       `json:"activity_5h,omitempty"`
+	LastActive    time.Time `json:"last_active,omitempty"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 func Empty() Record {
@@ -99,5 +103,14 @@ func SetNote(profile, note string) error {
 		return err
 	}
 	r.Note = note
+	return Save(profile, r)
+}
+
+func SetProvider(profile, provider string) error {
+	r, err := Load(profile)
+	if err != nil {
+		return err
+	}
+	r.Provider = provider
 	return Save(profile, r)
 }

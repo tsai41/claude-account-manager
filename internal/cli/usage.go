@@ -33,7 +33,7 @@ func newUsageCmd() *cobra.Command {
 			if !profile.Exists(name) {
 				return fmt.Errorf("profile %q not found", name)
 			}
-			u, err := usage.Load(name)
+			u, err := usage.LoadAndDerive(name)
 			if err != nil {
 				return err
 			}
@@ -42,8 +42,16 @@ func newUsageCmd() *cobra.Command {
 			if u.Manual != "" {
 				fmt.Printf("Manual: %s\n", u.Manual)
 			}
-			fmt.Printf("Session: %s (%s)\n", u.Session.Display, u.Session.Source)
-			fmt.Printf("Weekly: %s (%s)\n", u.Weekly.Display, u.Weekly.Source)
+			fmt.Printf("Session: %s (%s)\n", displayOrDash(u.Session.Display), u.Session.Source)
+			fmt.Printf("Weekly: %s (%s)\n", displayOrDash(u.Weekly.Display), u.Weekly.Source)
+			if u.Provider == "local-derived" {
+				fmt.Printf("Today turns: %d\n", u.ActivityToday)
+				fmt.Printf("7-day turns: %d\n", u.Activity7d)
+				fmt.Printf("5-hour turns: %d\n", u.Activity5h)
+				if !u.LastActive.IsZero() {
+					fmt.Printf("Last active: %s\n", u.LastActive.Format("2006-01-02 15:04:05"))
+				}
+			}
 			if u.Note != "" {
 				fmt.Printf("Note: %s\n", u.Note)
 			}

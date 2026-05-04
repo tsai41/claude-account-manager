@@ -72,12 +72,14 @@ func (m *Model) reload() error {
 
 	cols := []table.Column{
 		{Title: "", Width: 2},
-		{Title: "Name", Width: 14},
-		{Title: "Email", Width: 26},
-		{Title: "Session", Width: 9},
-		{Title: "Weekly", Width: 9},
+		{Title: "Name", Width: 12},
+		{Title: "Email", Width: 24},
+		{Title: "Session", Width: 8},
+		{Title: "Weekly", Width: 8},
+		{Title: "Today", Width: 6},
+		{Title: "7d", Width: 6},
 		{Title: "Last Used", Width: 16},
-		{Title: "Note", Width: 28},
+		{Title: "Note", Width: 22},
 	}
 	rows := make([]table.Row, 0, len(profs))
 	for _, p := range profs {
@@ -85,7 +87,7 @@ func (m *Model) reload() error {
 		if p.Name == st.CurrentProfile {
 			mark = "*"
 		}
-		u, _ := usage.Load(p.Name)
+		u, _ := usage.LoadAndDerive(p.Name)
 		session := u.Session.Display
 		if session == "" || session == "unknown" {
 			session = "--"
@@ -93,6 +95,12 @@ func (m *Model) reload() error {
 		weekly := u.Weekly.Display
 		if weekly == "" || weekly == "unknown" {
 			weekly = "--"
+		}
+		today := "--"
+		seven := "--"
+		if u.Provider == "local-derived" {
+			today = fmt.Sprintf("%d", u.ActivityToday)
+			seven = fmt.Sprintf("%d", u.Activity7d)
 		}
 		last := "--"
 		if !p.LastUsedAt.IsZero() {
@@ -102,7 +110,7 @@ func (m *Model) reload() error {
 		if email == "" {
 			email = "--"
 		}
-		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, last, u.Note})
+		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, today, seven, last, u.Note})
 	}
 
 	t := table.New(

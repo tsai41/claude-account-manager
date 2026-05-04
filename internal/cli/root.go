@@ -32,6 +32,7 @@ func NewRoot() *cobra.Command {
 		newUsageCmd(),
 		newUsageSetCmd(),
 		newUsageNoteCmd(),
+		newUsageProviderCmd(),
 		newDoctorCmd(),
 		newTuiCmd(),
 		newLogCmd(),
