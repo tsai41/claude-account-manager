@@ -48,7 +48,32 @@ var (
 			Background(lipgloss.Color("99"))
 	costAmountStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("46"))
 	subStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
+	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	cardStyle       = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(0, 2)
+	cardLabel = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	cardValue = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231"))
+	todayRow  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+	familyOpus   = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	familySonnet = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
+	familyHaiku  = lipgloss.NewStyle().Foreground(lipgloss.Color("84"))
+	familyOther  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 )
+
+func familyColor(name string) lipgloss.Style {
+	switch name {
+	case "Opus":
+		return familyOpus
+	case "Sonnet":
+		return familySonnet
+	case "Haiku":
+		return familyHaiku
+	default:
+		return familyOther
+	}
+}
 
 type Model struct {
 	tab       tabID
@@ -489,47 +514,93 @@ func (m Model) viewCosts() string {
 	}
 	c := m.costs
 	var b strings.Builder
-	b.WriteString(subStyle.Render("Today (machine-wide, list-price estimate)"))
-	b.WriteString("\n")
-	b.WriteString(costAmountStyle.Render(fmt.Sprintf("$%.2f", c.Today.Cost)))
-	b.WriteString(fmt.Sprintf("   %d turns   %s tokens   %d sessions   active %s",
-		c.Today.Turns, humanTokensTUI(c.Today.Tokens.Total()),
-		c.Today.Sessions, formatDurationTUI(c.Today.ActiveDur)))
-	b.WriteString("\n")
-	for _, fb := range c.Today.ByFamily {
-		b.WriteString(fmt.Sprintf("  %-8s  %5d turns  %8s  $%.2f\n",
-			fb.Family, fb.Turns, humanTokensTUI(fb.Tokens.Total()), fb.Cost))
-	}
-	b.WriteString("\n")
-	b.WriteString(subStyle.Render("Last 7 days  : "))
-	b.WriteString(fmt.Sprintf("$%.2f  (%d turns, %s tokens)\n",
-		c.Last7.Cost, c.Last7.Turns, humanTokensTUI(c.Last7.Tokens.Total())))
-	b.WriteString(subStyle.Render("Last 30 days : "))
-	b.WriteString(fmt.Sprintf("$%.2f  (%d turns, %s tokens)\n",
-		c.Last30.Cost, c.Last30.Turns, humanTokensTUI(c.Last30.Tokens.Total())))
 
+	// Today card
+	todayLines := []string{
+		cardLabel.Render(fmt.Sprintf("Today  ·  %s", time.Now().Format("Mon Jan 2"))),
+		costAmountStyle.Render(fmt.Sprintf("$%.2f", c.Today.Cost)),
+	}
+	if len(c.Today.ByFamily) > 0 {
+		todayLines = append(todayLines, dimStyle.Render(strings.Repeat("─", 38)))
+		for _, fb := range c.Today.ByFamily {
+			line := fmt.Sprintf("%s%s$%.2f",
+				familyColor(fb.Family).Render(padRight(fb.Family, 10)),
+				dimStyle.Render(padLeft(fmt.Sprintf("%s tokens", humanTokensTUI(fb.Tokens.Total())), 22)),
+				fb.Cost)
+			_ = line
+			todayLines = append(todayLines,
+				familyColor(fb.Family).Render(padRight(fb.Family, 10))+
+					dimStyle.Render(padLeft(humanTokensTUI(fb.Tokens.Total())+" tok", 18))+
+					cardValue.Render(fmt.Sprintf("  $%.2f", fb.Cost)))
+		}
+	}
+	footer := fmt.Sprintf("%d sessions  ·  %s tokens  ·  active %s",
+		c.Today.Sessions, humanTokensTUI(c.Today.Tokens.Total()), formatDurationTUI(c.Today.ActiveDur))
+	todayLines = append(todayLines, dimStyle.Render(strings.Repeat("─", 38)), dimStyle.Render(footer))
+	b.WriteString(cardStyle.Width(46).Render(strings.Join(todayLines, "\n")))
+	b.WriteString("\n\n")
+
+	// Two summary cards side-by-side
+	mkCard := func(label string, r jsonlscan.CostReport) string {
+		lines := []string{
+			cardLabel.Render(label),
+			cardValue.Render(fmt.Sprintf("$%.2f", r.Cost)),
+			dimStyle.Render(fmt.Sprintf("%d turns · %s tok", r.Turns, humanTokensTUI(r.Tokens.Total()))),
+		}
+		return cardStyle.Width(22).Render(strings.Join(lines, "\n"))
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Top,
+		mkCard("Last 7 Days", c.Last7),
+		"  ",
+		mkCard("Last 30 Days", c.Last30),
+	)
+	b.WriteString(row)
+	b.WriteString("\n\n")
+
+	// Daily history
 	if len(c.Last30.DailyTotals) > 0 {
+		b.WriteString(subStyle.Render(fmt.Sprintf("Daily History  ·  Total: $%.2f", c.Last30.Cost)))
 		b.WriteString("\n")
-		b.WriteString(subStyle.Render("Daily history:\n"))
 		max := 0.0
 		for _, d := range c.Last30.DailyTotals {
 			if d.Cost > max {
 				max = d.Cost
 			}
 		}
+		today := time.Now().Format("2006-01-02")
 		shown := c.Last30.DailyTotals
 		if len(shown) > 10 {
 			shown = shown[:10]
 		}
 		for _, d := range shown {
 			bar := bar20(d.Cost, max)
-			b.WriteString(fmt.Sprintf("  %s  $%-9.2f %s  %s\n",
-				d.Date, d.Cost, bar, strings.Join(d.Families, ",")))
+			date := d.Date[5:] // MM-DD
+			fams := strings.Join(d.Families, ",")
+			line := fmt.Sprintf("  %s   $%-8.2f  %s  %s", date, d.Cost, bar, dimStyle.Render(fams))
+			if d.Date == today {
+				line = todayRow.Render(fmt.Sprintf("▶ %s   $%-8.2f  ", date, d.Cost)) + bar + "  " + dimStyle.Render(fams)
+			}
+			b.WriteString(line)
+			b.WriteString("\n")
 		}
 	}
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Pricing: Opus $15/$75, Sonnet $3/$15, Haiku $1/$5 per 1M (in/out); cache adjusted. Not an invoice."))
+	b.WriteString(helpStyle.Render("Pricing (per 1M tokens): Opus $15/$75 · Sonnet $3/$15 · Haiku $1/$5 (in/out)\nCache-creation 1.25x (5m) / 2x (1h), cache-read 0.1x. List price · Not an invoice."))
 	return b.String()
+}
+
+func padRight(s string, w int) string {
+	if len(s) >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-len(s))
+}
+
+func padLeft(s string, w int) string {
+	if len(s) >= w {
+		return s
+	}
+	return strings.Repeat(" ", w-len(s)) + s
 }
 
 func (m Model) viewActivity() string {
