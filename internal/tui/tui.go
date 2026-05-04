@@ -176,6 +176,9 @@ func (m *Model) loadCosts() {
 
 func (m *Model) loadActivity() {
 	m.stats, m.statsErr = jsonlscan.Scan()
+	if m.costs.Today.Window == "" && m.costsErr == nil {
+		m.loadCosts()
+	}
 }
 
 func (m Model) Init() tea.Cmd { return nil }
@@ -610,20 +613,103 @@ func (m Model) viewActivity() string {
 		return errStyle.Render("scan error: " + m.statsErr.Error())
 	}
 	s := m.stats
+	c := m.costs
 	var b strings.Builder
-	b.WriteString(subStyle.Render("Local activity"))
-	b.WriteString("\n")
 	b.WriteString(dimStyle.Render("Scope: machine-wide (jsonl has no account binding)"))
 	b.WriteString("\n\n")
-	b.WriteString(fmt.Sprintf("Last 5 hours : %6d turns\n", s.Last5Hours))
-	b.WriteString(fmt.Sprintf("Today (24h)  : %6d turns  (%d session(s))\n", s.Today, s.Sessions))
-	b.WriteString(fmt.Sprintf("Last 7 days  : %6d turns\n", s.Last7Days))
+
+	// Today summary card
+	todayLines := []string{
+		cardLabel.Render(fmt.Sprintf("Today's Activity  ·  %s", time.Now().Format("Mon Jan 2"))),
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			activityStat("Turns", fmt.Sprintf("%d", s.Today), 14),
+			activityStat("Active", formatDurationTUI(c.Today.ActiveDur), 14),
+			activityStat("Sessions", fmt.Sprintf("%d", s.Sessions), 14),
+		),
+	}
+	if len(c.Today.ByFamily) > 0 {
+		todayLines = append(todayLines, dimStyle.Render(strings.Repeat("─", 44)))
+		var famLine []string
+		for _, fb := range c.Today.ByFamily {
+			famLine = append(famLine,
+				familyColor(fb.Family).Render("● ")+
+					cardValue.Render(fmt.Sprintf("%d", fb.Turns))+
+					" "+dimStyle.Render(fb.Family))
+		}
+		todayLines = append(todayLines, strings.Join(famLine, "    "))
+	}
 	if !s.LastActive.IsZero() {
-		b.WriteString(fmt.Sprintf("Last active  : %s\n", s.LastActive.Format("2006-01-02 15:04:05")))
+		todayLines = append(todayLines,
+			dimStyle.Render(fmt.Sprintf("Last active: %s", s.LastActive.Format("2006-01-02 15:04:05"))))
+	}
+	b.WriteString(cardStyle.Width(50).Render(strings.Join(todayLines, "\n")))
+	b.WriteString("\n\n")
+
+	// Recent windows
+	mkCard := func(label, val, sub string) string {
+		lines := []string{
+			cardLabel.Render(label),
+			cardValue.Render(val),
+			dimStyle.Render(sub),
+		}
+		return cardStyle.Width(22).Render(strings.Join(lines, "\n"))
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Top,
+		mkCard("Last 5 Hours", fmt.Sprintf("%d", s.Last5Hours), "turns"),
+		"  ",
+		mkCard("Last 7 Days", fmt.Sprintf("%d", s.Last7Days), "turns"),
+	)
+	b.WriteString(row)
+	b.WriteString("\n\n")
+
+	// Per-day turn bar (last 7 days from cost daily totals)
+	if len(c.Last30.DailyTotals) > 0 {
+		b.WriteString(subStyle.Render("Daily turns"))
+		b.WriteString("\n")
+		max := 0
+		shown := c.Last30.DailyTotals
+		if len(shown) > 7 {
+			shown = shown[:7]
+		}
+		for _, d := range shown {
+			if d.Turns > max {
+				max = d.Turns
+			}
+		}
+		today := time.Now().Format("2006-01-02")
+		for _, d := range shown {
+			bar := barInt(d.Turns, max, 24)
+			line := fmt.Sprintf("  %s   %5d turns  %s", d.Date[5:], d.Turns, bar)
+			if d.Date == today {
+				line = todayRow.Render(fmt.Sprintf("▶ %s   %5d turns  ", d.Date[5:], d.Turns)) + bar
+			}
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
 	}
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Note: jsonl transcripts have no per-account binding;\nthese counts are machine-wide and not the official usage bar."))
+	b.WriteString(helpStyle.Render("Turn = user or assistant message in jsonl. Active = sum of <5min gaps."))
 	return b.String()
+}
+
+func activityStat(label, value string, width int) string {
+	v := cardValue.Render(value)
+	l := dimStyle.Render(label)
+	return lipgloss.NewStyle().Width(width).Render(v + "\n" + l)
+}
+
+func barInt(v, max, width int) string {
+	if max <= 0 {
+		return strings.Repeat(" ", width)
+	}
+	n := int(float64(v) / float64(max) * float64(width))
+	if n < 0 {
+		n = 0
+	}
+	if n > width {
+		n = width
+	}
+	return strings.Repeat("█", n) + strings.Repeat(" ", width-n)
 }
 
 func humanTokensTUI(n int64) string {
