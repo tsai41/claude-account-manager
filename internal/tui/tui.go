@@ -515,6 +515,9 @@ func (m Model) viewCosts() string {
 	c := m.costs
 	var b strings.Builder
 
+	b.WriteString(dimStyle.Render("Scope: machine-wide (jsonl has no account binding)"))
+	b.WriteString("\n\n")
+
 	// Today card
 	todayLines := []string{
 		cardLabel.Render(fmt.Sprintf("Today  ·  %s", time.Now().Format("Mon Jan 2"))),
@@ -569,8 +572,8 @@ func (m Model) viewCosts() string {
 		}
 		today := time.Now().Format("2006-01-02")
 		shown := c.Last30.DailyTotals
-		if len(shown) > 10 {
-			shown = shown[:10]
+		if len(shown) > 7 {
+			shown = shown[:7]
 		}
 		for _, d := range shown {
 			bar := bar20(d.Cost, max)
@@ -584,8 +587,7 @@ func (m Model) viewCosts() string {
 			b.WriteString("\n")
 		}
 	}
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Pricing (per 1M tokens): Opus $15/$75 · Sonnet $3/$15 · Haiku $1/$5 (in/out)\nCache-creation 1.25x (5m) / 2x (1h), cache-read 0.1x. List price · Not an invoice."))
+	b.WriteString(helpStyle.Render("List price · Opus $15/$75 · Sonnet $3/$15 · Haiku $1/$5 per 1M (in/out) · Not an invoice"))
 	return b.String()
 }
 
@@ -609,7 +611,9 @@ func (m Model) viewActivity() string {
 	}
 	s := m.stats
 	var b strings.Builder
-	b.WriteString(subStyle.Render("Local activity (machine-wide, from ~/.claude/projects/*.jsonl)"))
+	b.WriteString(subStyle.Render("Local activity"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("Scope: machine-wide (jsonl has no account binding)"))
 	b.WriteString("\n\n")
 	b.WriteString(fmt.Sprintf("Last 5 hours : %6d turns\n", s.Last5Hours))
 	b.WriteString(fmt.Sprintf("Today (24h)  : %6d turns  (%d session(s))\n", s.Today, s.Sessions))
