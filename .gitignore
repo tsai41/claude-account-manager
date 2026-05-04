@@ -1,0 +1,5 @@
+/ccm
+/dist/
+/cmd/ccm/ccm
+*.test
+.DS_Store

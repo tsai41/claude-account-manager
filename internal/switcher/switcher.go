@@ -1,0 +1,111 @@
+package switcher
+
+import (
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/tsai41/claude-account-manager/internal/claudeauth"
+	"github.com/tsai41/claude-account-manager/internal/keychain"
+	"github.com/tsai41/claude-account-manager/internal/profile"
+	"github.com/tsai41/claude-account-manager/internal/snapshot"
+)
+
+// Result describes the outcome of a successful Switch.
+type Result struct {
+	Profile      profile.Profile
+	BackupDir    string
+	TokenFP      string
+	LiveEmail    string
+	EmailMatches bool
+}
+
+// Switch performs the full-restore switch to the named profile.
+func Switch(name string) (Result, error) {
+	target, err := profile.Load(name)
+	if err != nil {
+		return Result{}, err
+	}
+	st, _ := profile.LoadState()
+
+	liveTok, liveErr := keychain.ReadLive()
+	if liveErr != nil && !errors.Is(liveErr, keychain.ErrNotFound) {
+		return Result{}, fmt.Errorf("read live keychain: %w", liveErr)
+	}
+	bkDir, err := snapshot.BackupCurrent("pre-switch-to-"+name, liveTok)
+	if err != nil {
+		return Result{}, fmt.Errorf("safety backup: %w", err)
+	}
+
+	// Refresh source profile snapshot if email matches its profile.
+	if st.CurrentProfile != "" && st.CurrentProfile != name && liveErr == nil {
+		if srcProf, perr := profile.Load(st.CurrentProfile); perr == nil {
+			meta, _ := claudeauth.ReadAccountMeta()
+			if srcProf.Email != "" && meta.Email == srcProf.Email {
+				if snap, serr := snapshot.Create(srcProf.Name, liveTok); serr == nil {
+					srcProf.SnapshotID = snap.ID
+					srcProf.LastUsedAt = time.Now()
+					_ = profile.Save(srcProf)
+					_ = keychain.WriteBackup(srcProf.Name, liveTok)
+				}
+			}
+		}
+	}
+
+	snapDir, err := snapshot.Latest(name)
+	if err != nil {
+		return Result{}, err
+	}
+	if snapDir == "" {
+		return Result{}, fmt.Errorf("profile %s has no snapshot", name)
+	}
+	tokenFromSnap, err := snapshot.Restore(snapDir)
+	if err != nil {
+		return Result{}, fmt.Errorf("restore snapshot: %w (safety backup at %s)", err, bkDir)
+	}
+
+	token := tokenFromSnap
+	if t, kerr := keychain.ReadBackup(name); kerr == nil && t != "" {
+		token = t
+	}
+	if token == "" {
+		return Result{}, fmt.Errorf("no keychain token for profile %s (safety backup at %s)", name, bkDir)
+	}
+	if err := keychain.WriteLive(token); err != nil {
+		return Result{}, fmt.Errorf("write live keychain: %w (safety backup at %s)", err, bkDir)
+	}
+
+	meta, _ := claudeauth.ReadAccountMeta()
+	target.LastUsedAt = time.Now()
+	_ = profile.Save(target)
+	if err := profile.SaveState(profile.State{CurrentProfile: name, LastSwitchAt: time.Now()}); err != nil {
+		return Result{}, err
+	}
+
+	return Result{
+		Profile:      target,
+		BackupDir:    bkDir,
+		TokenFP:      keychain.Fingerprint(token),
+		LiveEmail:    meta.Email,
+		EmailMatches: target.Email == "" || meta.Email == "" || meta.Email == target.Email,
+	}, nil
+}
+
+// Remove deletes a profile and its keychain backup. If the profile was current, clears state.
+func Remove(name string, keepKeychain bool) error {
+	if !profile.Exists(name) {
+		return fmt.Errorf("profile %q not found", name)
+	}
+	if err := profile.Delete(name); err != nil {
+		return err
+	}
+	if !keepKeychain {
+		_ = keychain.DeleteBackup(name)
+	}
+	st, _ := profile.LoadState()
+	if st.CurrentProfile == name {
+		st.CurrentProfile = ""
+		_ = profile.SaveState(st)
+	}
+	return nil
+}
