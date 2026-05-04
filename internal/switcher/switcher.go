@@ -3,13 +3,26 @@ package switcher
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/tsai41/claude-account-manager/internal/claudeauth"
 	"github.com/tsai41/claude-account-manager/internal/keychain"
 	"github.com/tsai41/claude-account-manager/internal/logger"
 	"github.com/tsai41/claude-account-manager/internal/profile"
+	"github.com/tsai41/claude-account-manager/internal/safemerge"
 	"github.com/tsai41/claude-account-manager/internal/snapshot"
+)
+
+// Strategy controls how a switch applies the target snapshot to live state.
+type Strategy int
+
+const (
+	// StrategySafeMerge replaces only auth-sensitive keys in ~/.claude.json and the keychain LIVE entry.
+	// All other live state (~/.claude/ contents, non-auth settings) is preserved.
+	StrategySafeMerge Strategy = iota
+	// StrategyFullRestore overwrites ~/.claude.json entirely and replaces ~/.claude/ contents from the snapshot tar.
+	StrategyFullRestore
 )
 
 // Result describes the outcome of a successful Switch.
@@ -19,10 +32,17 @@ type Result struct {
 	TokenFP      string
 	LiveEmail    string
 	EmailMatches bool
+	Strategy     Strategy
+	MergedKeys   []string // populated when Strategy == StrategySafeMerge
 }
 
-// Switch performs the full-restore switch to the named profile.
+// Switch performs the default (safe-merge) switch to the named profile.
 func Switch(name string) (Result, error) {
+	return SwitchWith(name, StrategySafeMerge)
+}
+
+// SwitchWith performs a switch using the given strategy.
+func SwitchWith(name string, strategy Strategy) (Result, error) {
 	target, err := profile.Load(name)
 	if err != nil {
 		logger.Error("switch", name, "profile load failed", map[string]any{"err": err.Error()})
@@ -62,9 +82,27 @@ func Switch(name string) (Result, error) {
 	if snapDir == "" {
 		return Result{}, fmt.Errorf("profile %s has no snapshot", name)
 	}
-	tokenFromSnap, err := snapshot.Restore(snapDir)
-	if err != nil {
-		return Result{}, fmt.Errorf("restore snapshot: %w (safety backup at %s)", err, bkDir)
+	var (
+		tokenFromSnap string
+		mergedKeys    []string
+	)
+	switch strategy {
+	case StrategyFullRestore:
+		tokenFromSnap, err = snapshot.Restore(snapDir)
+		if err != nil {
+			return Result{}, fmt.Errorf("restore snapshot: %w (safety backup at %s)", err, bkDir)
+		}
+	case StrategySafeMerge:
+		mergedKeys, err = safemerge.MergeFromSnapshot(snapDir)
+		if err != nil {
+			return Result{}, fmt.Errorf("safe-merge snapshot: %w (safety backup at %s)", err, bkDir)
+		}
+		// also pick up token from snapshot file if present
+		if b, rerr := os.ReadFile(snapDir + "/keychain-credential.json"); rerr == nil {
+			tokenFromSnap = string(b)
+		}
+	default:
+		return Result{}, fmt.Errorf("unknown switch strategy")
 	}
 
 	token := tokenFromSnap
@@ -91,6 +129,8 @@ func Switch(name string) (Result, error) {
 		TokenFP:      keychain.Fingerprint(token),
 		LiveEmail:    meta.Email,
 		EmailMatches: target.Email == "" || meta.Email == "" || meta.Email == target.Email,
+		Strategy:     strategy,
+		MergedKeys:   mergedKeys,
 	}
 	logger.Info("switch.done", name, "switch complete", map[string]any{
 		"backup_dir":    bkDir,

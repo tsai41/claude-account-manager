@@ -54,6 +54,22 @@ func runImportCurrent(name string, force bool) error {
 	}
 	if meta.Email == "" {
 		fmt.Println("Warning: ~/.claude.json has no oauthAccount.emailAddress; profile will be unverified.")
+	} else {
+		// Duplicate-email detection: warn if another profile already claims this email.
+		if profs, lerr := profile.List(); lerr == nil {
+			for _, ex := range profs {
+				if ex.Name == name {
+					continue
+				}
+				if ex.Email != "" && ex.Email == meta.Email {
+					if !force {
+						return fmt.Errorf("email %s is already imported as profile %q; use --force to import again under %q",
+							meta.Email, ex.Name, name)
+					}
+					fmt.Printf("Warning: email %s already imported as profile %q (proceeding due to --force)\n", meta.Email, ex.Name)
+				}
+			}
+		}
 	}
 
 	// Force overwrite: backup existing profile dir first

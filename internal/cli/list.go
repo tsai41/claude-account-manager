@@ -29,21 +29,15 @@ func runList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "CURRENT\tNAME\tEMAIL\tAUTH\tSESSION\tWEEKLY\tLAST USED")
+	fmt.Fprintln(w, "CURRENT\tNAME\tEMAIL\tAUTH\tSESSION LEFT\tWEEKLY LEFT\tLAST USED")
 	for _, p := range profs {
 		mark := ""
 		if p.Name == st.CurrentProfile {
 			mark = "*"
 		}
 		u, _ := usage.Load(p.Name)
-		session := u.Session.Display
-		if session == "" || session == "unknown" {
-			session = "--"
-		}
-		weekly := u.Weekly.Display
-		if weekly == "" || weekly == "unknown" {
-			weekly = "--"
-		}
+		session := usage.Remaining(u.Session.Display)
+		weekly := usage.Remaining(u.Weekly.Display)
 		last := "--"
 		if !p.LastUsedAt.IsZero() {
 			last = p.LastUsedAt.Format("2006-01-02 15:04")

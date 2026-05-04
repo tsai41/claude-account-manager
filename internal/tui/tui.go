@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
 	"github.com/tsai41/claude-account-manager/internal/profile"
 	"github.com/tsai41/claude-account-manager/internal/switcher"
 	"github.com/tsai41/claude-account-manager/internal/usage"
@@ -21,6 +22,7 @@ const (
 	modeConfirmDelete
 	modeEditNote
 	modeEditUsage
+	modeStats
 )
 
 var (
@@ -41,6 +43,8 @@ type Model struct {
 	usageFor  string
 	delFor    string
 	current   string
+	stats     jsonlscan.Activity
+	statsErr  error
 }
 
 func New() (Model, error) {
@@ -72,14 +76,12 @@ func (m *Model) reload() error {
 
 	cols := []table.Column{
 		{Title: "", Width: 2},
-		{Title: "Name", Width: 12},
-		{Title: "Email", Width: 24},
-		{Title: "Session", Width: 8},
-		{Title: "Weekly", Width: 8},
-		{Title: "Today", Width: 6},
-		{Title: "7d", Width: 6},
+		{Title: "Name", Width: 14},
+		{Title: "Email", Width: 28},
+		{Title: "Session Left", Width: 13},
+		{Title: "Weekly Left", Width: 12},
 		{Title: "Last Used", Width: 16},
-		{Title: "Note", Width: 22},
+		{Title: "Note", Width: 28},
 	}
 	rows := make([]table.Row, 0, len(profs))
 	for _, p := range profs {
@@ -87,21 +89,9 @@ func (m *Model) reload() error {
 		if p.Name == st.CurrentProfile {
 			mark = "*"
 		}
-		u, _ := usage.LoadAndDerive(p.Name)
-		session := u.Session.Display
-		if session == "" || session == "unknown" {
-			session = "--"
-		}
-		weekly := u.Weekly.Display
-		if weekly == "" || weekly == "unknown" {
-			weekly = "--"
-		}
-		today := "--"
-		seven := "--"
-		if u.Provider == "local-derived" {
-			today = fmt.Sprintf("%d", u.ActivityToday)
-			seven = fmt.Sprintf("%d", u.Activity7d)
-		}
+		u, _ := usage.Load(p.Name)
+		session := usage.Remaining(u.Session.Display)
+		weekly := usage.Remaining(u.Weekly.Display)
 		last := "--"
 		if !p.LastUsedAt.IsZero() {
 			last = p.LastUsedAt.Format("2006-01-02 15:04")
@@ -110,7 +100,7 @@ func (m *Model) reload() error {
 		if email == "" {
 			email = "--"
 		}
-		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, today, seven, last, u.Note})
+		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, last, u.Note})
 	}
 
 	t := table.New(
@@ -152,8 +142,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateEditNote(msg)
 	case modeEditUsage:
 		return m.updateEditUsage(msg)
+	case modeStats:
+		return m.updateStats(msg)
 	}
 	return m.updateTable(msg)
+}
+
+func (m Model) updateStats(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch k.String() {
+		case "esc", "q", "s", "enter":
+			m.mode = modeTable
+			return m, nil
+		case "r":
+			m.stats, m.statsErr = jsonlscan.Scan()
+			return m, nil
+		}
+	}
+	return m, nil
 }
 
 func (m Model) updateTable(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -228,6 +234,12 @@ func (m Model) updateTable(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.delFor = name
 			m.mode = modeConfirmDelete
+			m.errMsg = ""
+			m.status = ""
+			return m, nil
+		case "s":
+			m.stats, m.statsErr = jsonlscan.Scan()
+			m.mode = modeStats
 			m.errMsg = ""
 			m.status = ""
 			return m, nil
@@ -335,10 +347,28 @@ func (m Model) View() string {
 		b.WriteString(m.usageIn.View())
 		b.WriteString("\n")
 		b.WriteString(helpStyle.Render("Tip: \"session 42%, weekly 68%\" parses both fields."))
+	case modeStats:
+		b.WriteString(titleStyle.Render("Local activity (machine-wide, from ~/.claude/projects/*.jsonl)"))
+		b.WriteString("\n\n")
+		if m.statsErr != nil {
+			b.WriteString(errStyle.Render("scan error: " + m.statsErr.Error()))
+		} else {
+			s := m.stats
+			b.WriteString(fmt.Sprintf("Last 5 hours : %6d turns\n", s.Last5Hours))
+			b.WriteString(fmt.Sprintf("Today (24h)  : %6d turns  (%d session(s))\n", s.Today, s.Sessions))
+			b.WriteString(fmt.Sprintf("Last 7 days  : %6d turns\n", s.Last7Days))
+			if !s.LastActive.IsZero() {
+				b.WriteString(fmt.Sprintf("Last active  : %s\n", s.LastActive.Format("2006-01-02 15:04:05")))
+			}
+			b.WriteString("\n")
+			b.WriteString(helpStyle.Render("Note: jsonl transcripts have no per-account binding;\nthese counts are machine-wide and not the official usage bar."))
+		}
+		b.WriteString("\n\n")
+		b.WriteString(helpStyle.Render("r refresh  Esc/q/s/Enter back"))
 	default:
 		b.WriteString(m.table.View())
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("j/k move  Enter switch  r refresh  e edit-usage  u edit-note  d delete  q quit"))
+		b.WriteString(helpStyle.Render("j/k move  Enter switch  s stats  r refresh  e edit-usage  u edit-note  d delete  q quit"))
 	}
 
 	if m.status != "" {

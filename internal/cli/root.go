@@ -36,6 +36,8 @@ func NewRoot() *cobra.Command {
 		newDoctorCmd(),
 		newTuiCmd(),
 		newLogCmd(),
+		newRollbackCmd(),
+		newVersionCmd(),
 	)
 	return root
 }

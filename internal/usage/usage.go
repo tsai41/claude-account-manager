@@ -64,7 +64,35 @@ func Save(profile string, r Record) error {
 var (
 	sessionRe = regexp.MustCompile(`(?i)session[^0-9-]*([0-9]+(?:\.[0-9]+)?%?)`)
 	weeklyRe  = regexp.MustCompile(`(?i)weekly[^0-9-]*([0-9]+(?:\.[0-9]+)?%?)`)
+	pctRe     = regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?)%$`)
 )
+
+// Remaining converts a "consumed" percentage display ("42%") into a remaining one ("58%").
+// Non-percent inputs (or the literal "unknown"/"--"/"") return "--".
+func Remaining(consumed string) string {
+	if consumed == "" || consumed == "unknown" || consumed == "--" {
+		return "--"
+	}
+	m := pctRe.FindStringSubmatch(consumed)
+	if len(m) < 2 {
+		return consumed
+	}
+	var n float64
+	for _, c := range m[1] {
+		_ = c
+	}
+	if _, err := fmtSscan(m[1], &n); err != nil {
+		return consumed
+	}
+	left := 100 - n
+	if left < 0 {
+		left = 0
+	}
+	if left == float64(int(left)) {
+		return formatInt(int(left)) + "%"
+	}
+	return formatFloat(left) + "%"
+}
 
 // ParseManual extracts "session X%" and "weekly Y%" tokens from a free-form value.
 // Returns ("", "") if neither label is present.

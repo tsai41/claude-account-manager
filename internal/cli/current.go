@@ -64,10 +64,8 @@ func runCurrent(cmd *cobra.Command, args []string) error {
 	if liveFP != "" {
 		fmt.Printf("Live token fp: %s\n", liveFP)
 	}
-	fmt.Printf("Usage: session %s, weekly %s\n", displayOrDash(u.Session.Display), displayOrDash(u.Weekly.Display))
-	if u.Manual != "" && (u.Session.Display == "" || u.Session.Display == "unknown") {
-		fmt.Printf("Manual: %s\n", u.Manual)
-	}
+	fmt.Printf("Usage left: session %s, weekly %s\n", usage.Remaining(u.Session.Display), usage.Remaining(u.Weekly.Display))
+	fmt.Printf("Usage used: session %s, weekly %s\n", displayOrDash(u.Session.Display), displayOrDash(u.Weekly.Display))
 	if !p.LastUsedAt.IsZero() {
 		fmt.Printf("Last used: %s\n", p.LastUsedAt.Format("2006-01-02 15:04:05"))
 	}

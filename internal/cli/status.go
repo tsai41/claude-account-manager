@@ -63,7 +63,8 @@ func runStatus(name string) error {
 	} else {
 		fmt.Printf("Keychain backup: missing (%v)\n", bkErr)
 	}
-	fmt.Printf("Usage: session %s, weekly %s\n", displayOrDash(u.Session.Display), displayOrDash(u.Weekly.Display))
+	fmt.Printf("Usage left: session %s, weekly %s\n", usage.Remaining(u.Session.Display), usage.Remaining(u.Weekly.Display))
+	fmt.Printf("Usage used: session %s, weekly %s\n", displayOrDash(u.Session.Display), displayOrDash(u.Weekly.Display))
 	if u.Manual != "" {
 		fmt.Printf("Manual raw: %s\n", u.Manual)
 	}
