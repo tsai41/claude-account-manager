@@ -3,6 +3,8 @@ package usage
 import (
 	"encoding/json"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/tsai41/claude-account-manager/internal/paths"
@@ -55,15 +57,39 @@ func Save(profile string, r Record) error {
 	return os.WriteFile(paths.ProfileUsage(profile), b, 0o600)
 }
 
+var (
+	sessionRe = regexp.MustCompile(`(?i)session[^0-9-]*([0-9]+(?:\.[0-9]+)?%?)`)
+	weeklyRe  = regexp.MustCompile(`(?i)weekly[^0-9-]*([0-9]+(?:\.[0-9]+)?%?)`)
+)
+
+// ParseManual extracts "session X%" and "weekly Y%" tokens from a free-form value.
+// Returns ("", "") if neither label is present.
+func ParseManual(value string) (session, weekly string) {
+	if m := sessionRe.FindStringSubmatch(value); len(m) > 1 {
+		session = m[1]
+	}
+	if m := weeklyRe.FindStringSubmatch(value); len(m) > 1 {
+		weekly = m[1]
+	}
+	return
+}
+
 func SetManual(profile, value string) error {
 	r, err := Load(profile)
 	if err != nil {
 		return err
 	}
 	r.Provider = "manual"
-	r.Manual = value
-	r.Session.Display = value
-	r.Session.Source = "manual"
+	r.Manual = strings.TrimSpace(value)
+	session, weekly := ParseManual(value)
+	if session != "" {
+		r.Session = Field{Display: session, Source: "manual"}
+	} else {
+		r.Session = Field{Display: r.Manual, Source: "manual"}
+	}
+	if weekly != "" {
+		r.Weekly = Field{Display: weekly, Source: "manual"}
+	}
 	return Save(profile, r)
 }
 

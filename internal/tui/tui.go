@@ -20,6 +20,7 @@ const (
 	modeTable viewMode = iota
 	modeConfirmDelete
 	modeEditNote
+	modeEditUsage
 )
 
 var (
@@ -30,14 +31,16 @@ var (
 )
 
 type Model struct {
-	table    table.Model
-	mode     viewMode
-	status   string
-	errMsg   string
-	noteIn   textinput.Model
-	noteFor  string
-	delFor   string
-	current  string
+	table     table.Model
+	mode      viewMode
+	status    string
+	errMsg    string
+	noteIn    textinput.Model
+	noteFor   string
+	usageIn   textinput.Model
+	usageFor  string
+	delFor    string
+	current   string
 }
 
 func New() (Model, error) {
@@ -50,6 +53,12 @@ func New() (Model, error) {
 	ti.CharLimit = 200
 	ti.Width = 60
 	m.noteIn = ti
+
+	ui := textinput.New()
+	ui.Placeholder = "session 42%, weekly 68%"
+	ui.CharLimit = 200
+	ui.Width = 60
+	m.usageIn = ui
 	return m, nil
 }
 
@@ -64,10 +73,11 @@ func (m *Model) reload() error {
 	cols := []table.Column{
 		{Title: "", Width: 2},
 		{Title: "Name", Width: 14},
-		{Title: "Email", Width: 28},
-		{Title: "Usage", Width: 18},
+		{Title: "Email", Width: 26},
+		{Title: "Session", Width: 9},
+		{Title: "Weekly", Width: 9},
 		{Title: "Last Used", Width: 16},
-		{Title: "Note", Width: 30},
+		{Title: "Note", Width: 28},
 	}
 	rows := make([]table.Row, 0, len(profs))
 	for _, p := range profs {
@@ -76,9 +86,13 @@ func (m *Model) reload() error {
 			mark = "*"
 		}
 		u, _ := usage.Load(p.Name)
-		usageDisp := u.Manual
-		if usageDisp == "" {
-			usageDisp = "--"
+		session := u.Session.Display
+		if session == "" || session == "unknown" {
+			session = "--"
+		}
+		weekly := u.Weekly.Display
+		if weekly == "" || weekly == "unknown" {
+			weekly = "--"
 		}
 		last := "--"
 		if !p.LastUsedAt.IsZero() {
@@ -88,7 +102,7 @@ func (m *Model) reload() error {
 		if email == "" {
 			email = "--"
 		}
-		rows = append(rows, table.Row{mark, p.Name, email, usageDisp, last, u.Note})
+		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, last, u.Note})
 	}
 
 	t := table.New(
@@ -128,6 +142,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateConfirmDelete(msg)
 	case modeEditNote:
 		return m.updateEditNote(msg)
+	case modeEditUsage:
+		return m.updateEditUsage(msg)
 	}
 	return m.updateTable(msg)
 }
@@ -184,6 +200,19 @@ func (m Model) updateTable(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errMsg = ""
 			m.status = ""
 			return m, textinput.Blink
+		case "e":
+			name := m.currentRowName()
+			if name == "" {
+				return m, nil
+			}
+			u, _ := usage.Load(name)
+			m.usageIn.SetValue(u.Manual)
+			m.usageIn.Focus()
+			m.usageFor = name
+			m.mode = modeEditUsage
+			m.errMsg = ""
+			m.status = ""
+			return m, textinput.Blink
 		case "d":
 			name := m.currentRowName()
 			if name == "" {
@@ -222,6 +251,32 @@ func (m Model) updateConfirmDelete(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m Model) updateEditUsage(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch k.String() {
+		case "enter":
+			if err := usage.SetManual(m.usageFor, m.usageIn.Value()); err != nil {
+				m.errMsg = err.Error()
+			} else {
+				m.status = fmt.Sprintf("Usage saved for %s", m.usageFor)
+			}
+			m.usageIn.Blur()
+			m.usageFor = ""
+			m.mode = modeTable
+			_ = m.reload()
+			return m, nil
+		case "esc":
+			m.usageIn.Blur()
+			m.usageFor = ""
+			m.mode = modeTable
+			return m, nil
+		}
+	}
+	var cmd tea.Cmd
+	m.usageIn, cmd = m.usageIn.Update(msg)
+	return m, cmd
 }
 
 func (m Model) updateEditNote(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -265,10 +320,17 @@ func (m Model) View() string {
 		b.WriteString("\n\n")
 		b.WriteString(fmt.Sprintf("Edit note for %s (Enter to save, Esc to cancel):\n", m.noteFor))
 		b.WriteString(m.noteIn.View())
+	case modeEditUsage:
+		b.WriteString(m.table.View())
+		b.WriteString("\n\n")
+		b.WriteString(fmt.Sprintf("Edit usage for %s (Enter to save, Esc to cancel):\n", m.usageFor))
+		b.WriteString(m.usageIn.View())
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("Tip: \"session 42%, weekly 68%\" parses both fields."))
 	default:
 		b.WriteString(m.table.View())
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("j/k move  Enter switch  r refresh  u edit-note  d delete  q quit"))
+		b.WriteString(helpStyle.Render("j/k move  Enter switch  r refresh  e edit-usage  u edit-note  d delete  q quit"))
 	}
 
 	if m.status != "" {

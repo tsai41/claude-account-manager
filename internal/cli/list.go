@@ -29,16 +29,20 @@ func runList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "CURRENT\tNAME\tEMAIL\tAUTH\tUSAGE\tLAST USED")
+	fmt.Fprintln(w, "CURRENT\tNAME\tEMAIL\tAUTH\tSESSION\tWEEKLY\tLAST USED")
 	for _, p := range profs {
 		mark := ""
 		if p.Name == st.CurrentProfile {
 			mark = "*"
 		}
 		u, _ := usage.Load(p.Name)
-		usageDisp := u.Manual
-		if usageDisp == "" {
-			usageDisp = "--"
+		session := u.Session.Display
+		if session == "" || session == "unknown" {
+			session = "--"
+		}
+		weekly := u.Weekly.Display
+		if weekly == "" || weekly == "unknown" {
+			weekly = "--"
 		}
 		last := "--"
 		if !p.LastUsedAt.IsZero() {
@@ -48,7 +52,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		if email == "" {
 			email = "--"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", mark, p.Name, email, p.AuthType, usageDisp, last)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", mark, p.Name, email, p.AuthType, session, weekly, last)
 	}
 	return w.Flush()
 }
