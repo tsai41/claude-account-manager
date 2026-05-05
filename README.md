@@ -1,10 +1,23 @@
 # claude-account-manager (ccm)
 
+[![CI](https://github.com/tsai41/claude-account-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/tsai41/claude-account-manager/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/tsai41/claude-account-manager?display_name=tag&sort=semver)](https://github.com/tsai41/claude-account-manager/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go](https://img.shields.io/github/go-mod/go-version/tsai41/claude-account-manager)](go.mod)
+
 Local-only manager for Claude Code OAuth account state on macOS.
 
 Switch between multiple Claude Code logins without re-authenticating, by snapshotting `~/.claude.json`, the macOS Keychain entry that holds the OAuth tokens, and (optionally) `~/.claude/`. Bundles a TUI that also surfaces local activity and an estimated API-equivalent cost from your jsonl transcripts.
 
 > All data stays on the local machine. No API keys, no cloud.
+
+## Status & Requirements
+
+- **Status:** alpha. CLI and TUI are working but interfaces may change before `v1.0`.
+- **OS:** macOS only. ccm reads/writes Claude Code's OAuth token via the macOS `security` CLI; there is no Linux or Windows port.
+- **Architectures:** Apple Silicon (`darwin/arm64`) and Intel (`darwin/amd64`).
+- **Runtime deps:** `security` (ships with macOS), Claude Code already logged in at least once.
+- **Build deps:** Go 1.22+ (toolchain pinned via `go.mod`).
 
 ## Install
 
