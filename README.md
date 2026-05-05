@@ -17,11 +17,19 @@ Switch between multiple Claude Code logins without re-authenticating, by snapsho
 - **OS:** macOS only. ccm reads/writes Claude Code's OAuth token via the macOS `security` CLI; there is no Linux or Windows port.
 - **Architectures:** Apple Silicon (`darwin/arm64`) and Intel (`darwin/amd64`).
 - **Runtime deps:** `security` (ships with macOS), Claude Code already logged in at least once.
-- **Build deps:** Go 1.22+ (toolchain pinned via `go.mod`).
+- **Build deps:** Go toolchain matching `go.mod` (currently `go 1.26`).
 
 ## Install
 
 Pre-built binaries are published on the [Releases page](https://github.com/tsai41/claude-account-manager/releases). Download the macOS tarball matching your CPU (`darwin_arm64` for Apple Silicon, `darwin_amd64` for Intel), extract, and drop `ccm` somewhere on your `PATH`.
+
+Released binaries are unsigned, so macOS Gatekeeper may quarantine them. After unpacking, clear the quarantine attribute once:
+
+```sh
+xattr -d com.apple.quarantine ./ccm 2>/dev/null || true
+chmod +x ./ccm
+sudo mv ./ccm /usr/local/bin/
+```
 
 Or build from source:
 
@@ -59,7 +67,7 @@ ccm use work                  # CLI switch (safe-merge by default)
 |---|---|
 | `ccm` | TUI when profiles exist; otherwise show current/bootstrap hint |
 | `ccm current` | show current profile |
-| `ccm list` | list profiles |
+| `ccm list [--json]` | list profiles |
 | `ccm import-current <name> [--force]` | capture currently logged-in OAuth state; `--force` to overwrite or accept duplicate email |
 | `ccm use <name> [--full-restore]` | switch profile (default: safe-merge) |
 | `ccm remove <name> [--keep-keychain-backup]` | delete profile |
@@ -72,7 +80,7 @@ ccm use work                  # CLI switch (safe-merge by default)
 | `ccm pricing show\|init\|path` | inspect or scaffold the pricing override file |
 | `ccm rollback [id]` | list safety backups, or restore one by id |
 | `ccm log [-n N]` | tail recent ccm log entries |
-| `ccm doctor` | diagnostics including fingerprint duplicate detection |
+| `ccm doctor [--json]` | diagnostics including fingerprint duplicate detection |
 | `ccm tui` | interactive TUI |
 | `ccm version` | version info |
 | `ccm completion <bash\|zsh\|fish\|powershell>` | print shell completion script |
@@ -102,12 +110,14 @@ Tabs (top of screen): **1 Profiles**, **2 Costs**, **3 Activity**.
 | `e` | edit usage value |
 | `u` | edit note |
 | `d` | delete profile (`y`/`N` confirm) |
+| `i` | show profile detail (fp / snapshot / email) |
+| `?` | toggle key help overlay |
 | `r` | refresh tab data |
 | `q` / `Esc` | quit |
 
 The Costs tab shows the **API-equivalent** dollar amount: what those tokens would cost on the pay-as-you-go API at public list rates, with cache-creation and cache-read multipliers applied. If you use Claude Pro / Max / Team, you pay a flat subscription, **not this number** — it is a usage signal, not an invoice. Today's number plus per-family breakdown, 7-day and 30-day totals, and a daily history bar.
 
-By default, sub-agent (Task tool) messages with `isSidechain: true` are excluded from token totals; set `CCM_INCLUDE_SIDECHAIN=1` to include them.
+Methodology: assistant messages from `~/.claude/projects/**/*.jsonl` are deduplicated by `requestId` (Claude Code re-emits resumed sessions into new files), aggregated by model family, and priced with `Pricing.Cost(tokens)`. Sub-agent (Task tool) messages with `isSidechain: true` are excluded from token totals; set `CCM_INCLUDE_SIDECHAIN=1` to include them.
 
 To override per-model pricing, run `ccm pricing init` to scaffold `~/.ccm/pricing.json` and edit the multipliers. Set `cache_create_5m_mult` and `cache_create_1h_mult` to `0.1` if you want totals to align with tools that price cache writes like cache reads.
 
