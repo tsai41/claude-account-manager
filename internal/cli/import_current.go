@@ -47,6 +47,30 @@ func runImportCurrent(name string, force bool) error {
 		return fmt.Errorf("read live keychain: %w (is Claude Code logged in?)", err)
 	}
 
+	// Token-fingerprint corruption pre-check: if the live token already matches
+	// another profile's backup, importing under a new name is suspicious — likely
+	// the user forgot to switch first or another tool overwrote the live slot.
+	liveFP := keychain.Fingerprint(token)
+	if liveFP != "" {
+		if profs, lerr := profile.List(); lerr == nil {
+			for _, ex := range profs {
+				if ex.Name == name {
+					continue
+				}
+				bkTok, berr := keychain.ReadBackup(ex.Name)
+				if berr != nil {
+					continue
+				}
+				if keychain.Fingerprint(bkTok) == liveFP {
+					if !force {
+						return fmt.Errorf("live token fingerprint %s already matches profile %q; refusing without --force (likely you need to `claude /login` for the new account first)", liveFP, ex.Name)
+					}
+					fmt.Printf("Warning: live token fp %s already in profile %q (proceeding due to --force)\n", liveFP, ex.Name)
+				}
+			}
+		}
+	}
+
 	// Read account metadata
 	meta, err := claudeauth.ReadAccountMeta()
 	if err != nil {

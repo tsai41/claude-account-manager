@@ -8,11 +8,13 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
 	"github.com/tsai41/claude-account-manager/internal/keychain"
+	"github.com/tsai41/claude-account-manager/internal/logger"
 	"github.com/tsai41/claude-account-manager/internal/profile"
 	"github.com/tsai41/claude-account-manager/internal/snapshot"
 	"github.com/tsai41/claude-account-manager/internal/switcher"
@@ -25,9 +27,10 @@ const (
 	tabProfiles tabID = iota
 	tabCosts
 	tabActivity
+	tabHistory
 )
 
-var tabNames = []string{"Profiles", "Costs", "Activity"}
+var tabNames = []string{"Profiles", "Costs", "Activity", "History"}
 
 type viewMode int
 
@@ -118,6 +121,10 @@ type Model struct {
 	stats     jsonlscan.Activity
 	statsErr  error
 	statsLoading bool
+	history     []logger.Entry
+	historyErr  error
+	width, height int
+	bodyVP        viewport.Model
 }
 
 type costsLoadedMsg struct {
@@ -158,6 +165,8 @@ func New() (Model, error) {
 	ui.CharLimit = 200
 	ui.Width = 60
 	m.usageIn = ui
+
+	m.bodyVP = viewport.New(80, 16)
 	return m, nil
 }
 
@@ -249,45 +258,86 @@ func (m Model) currentRowName() string {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Async scan results
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		bodyH := msg.Height - 8 // title + tabs + spacing + footer
+		if bodyH < 6 {
+			bodyH = 6
+		}
+		m.bodyVP.Width = msg.Width
+		m.bodyVP.Height = bodyH
+		// table height: leave room for tabs + footer + status
+		tableH := bodyH - 1
+		if tableH < 4 {
+			tableH = 4
+		}
+		m.table.SetHeight(tableH)
+		m.refreshBodyVP()
+		return m, nil
 	case costsLoadedMsg:
 		m.costs = msg.cs
 		m.costsErr = msg.err
 		m.costsLoading = false
+		m.refreshBodyVP()
 		return m, nil
 	case statsLoadedMsg:
 		m.stats = msg.a
 		m.statsErr = msg.err
 		m.statsLoading = false
+		m.refreshBodyVP()
 		return m, nil
 	}
 
 	// Global tab switching keys (only outside text-input modes)
 	if k, ok := msg.(tea.KeyMsg); ok && m.mode != modeEditNote && m.mode != modeEditUsage {
 		switch k.String() {
-		case "tab", "right", "l":
+		case "tab", "right":
 			if m.mode == modeTable {
 				m.tab = (m.tab + 1) % tabID(len(tabNames))
-				return m, m.lazyLoadTab()
+				cmd := m.lazyLoadTab()
+				if m.tab == tabHistory {
+					m.loadHistory()
+				}
+				m.refreshBodyVP()
+				return m, cmd
 			}
-		case "shift+tab", "left", "h":
+		case "shift+tab", "left":
 			if m.mode == modeTable {
 				m.tab = (m.tab + tabID(len(tabNames)) - 1) % tabID(len(tabNames))
-				return m, m.lazyLoadTab()
+				cmd := m.lazyLoadTab()
+				if m.tab == tabHistory {
+					m.loadHistory()
+				}
+				m.refreshBodyVP()
+				return m, cmd
 			}
 		case "1":
 			if m.mode == modeTable {
 				m.tab = tabProfiles
+				m.refreshBodyVP()
 				return m, nil
 			}
 		case "2":
 			if m.mode == modeTable {
 				m.tab = tabCosts
-				return m, m.lazyLoadTab()
+				cmd := m.lazyLoadTab()
+				m.refreshBodyVP()
+				return m, cmd
 			}
 		case "3":
 			if m.mode == modeTable {
 				m.tab = tabActivity
-				return m, m.lazyLoadTab()
+				cmd := m.lazyLoadTab()
+				m.refreshBodyVP()
+				return m, cmd
+			}
+		case "4":
+			if m.mode == modeTable {
+				m.tab = tabHistory
+				m.loadHistory()
+				m.refreshBodyVP()
+				return m, nil
 			}
 		}
 	}
@@ -320,6 +370,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCostsTab(msg)
 	case tabActivity:
 		return m.updateActivityTab(msg)
+	case tabHistory:
+		return m.updateHistoryTab(msg)
 	}
 	return m, nil
 }
@@ -341,6 +393,26 @@ func (m *Model) lazyLoadTab() tea.Cmd {
 		return tea.Batch(cmds...)
 	}
 	return nil
+}
+
+func (m *Model) loadHistory() {
+	m.history, m.historyErr = logger.Tail(200)
+}
+
+// refreshBodyVP updates the viewport content for the current non-Profiles tab.
+func (m *Model) refreshBodyVP() {
+	var content string
+	switch m.tab {
+	case tabCosts:
+		content = m.viewCosts()
+	case tabActivity:
+		content = m.viewActivity()
+	case tabHistory:
+		content = m.viewHistory()
+	default:
+		return
+	}
+	m.bodyVP.SetContent(content)
 }
 
 func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -449,7 +521,9 @@ func (m Model) updateCostsTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.bodyVP, cmd = m.bodyVP.Update(msg)
+	return m, cmd
 }
 
 func (m Model) updateActivityTab(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -468,7 +542,27 @@ func (m Model) updateActivityTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.bodyVP, cmd = m.bodyVP.Update(msg)
+	return m, cmd
+}
+
+func (m Model) updateHistoryTab(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch k.String() {
+		case "q", "ctrl+c", "esc":
+			return m, tea.Quit
+		case "r":
+			m.loadHistory()
+			m.refreshBodyVP()
+			m.status = "History refreshed"
+			m.errMsg = ""
+			return m, nil
+		}
+	}
+	var cmd tea.Cmd
+	m.bodyVP, cmd = m.bodyVP.Update(msg)
+	return m, cmd
 }
 
 func (m Model) updateConfirmSwitch(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -621,15 +715,11 @@ func (m Model) View() string {
 		case tabProfiles:
 			b.WriteString(m.table.View())
 			b.WriteString("\n\n")
-			b.WriteString(helpStyle.Render("? help  Tab/1-3 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r refresh  q quit"))
-		case tabCosts:
-			b.WriteString(m.viewCosts())
+			b.WriteString(helpStyle.Render("? help  Tab/1-4 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r refresh  q quit"))
+		case tabCosts, tabActivity, tabHistory:
+			b.WriteString(m.bodyVP.View())
 			b.WriteString("\n")
-			b.WriteString(helpStyle.Render("Tab cycle tabs  r refresh  q quit"))
-		case tabActivity:
-			b.WriteString(m.viewActivity())
-			b.WriteString("\n")
-			b.WriteString(helpStyle.Render("Tab cycle tabs  r refresh  q quit"))
+			b.WriteString(helpStyle.Render("Tab cycle tabs  ↑/↓ scroll  r refresh  q quit"))
 		}
 	}
 
@@ -649,9 +739,15 @@ func (m Model) viewCosts() string {
 		return errStyle.Render("scan error: " + m.costsErr.Error())
 	}
 	if m.costs.Today.Window == "" {
-		return dimStyle.Render("Loading costs… (scanning ~/.claude/projects/*.jsonl)")
+		if m.costsLoading {
+			return dimStyle.Render("Loading costs… (scanning ~/.claude/projects/*.jsonl)")
+		}
+		return dimStyle.Render("No cost data yet — open Costs tab to load.")
 	}
 	c := m.costs
+	if c.Last30.Turns == 0 {
+		return dimStyle.Render("No assistant messages found in ~/.claude/projects/*.jsonl in the last 30 days.\nUse Claude Code at least once to populate the transcript history.")
+	}
 	var b strings.Builder
 
 	b.WriteString(dimStyle.Render("Scope: machine-wide · API-equivalent at list price · subscription bills are flat"))
@@ -742,6 +838,56 @@ func padLeft(s string, w int) string {
 		return s
 	}
 	return strings.Repeat(" ", w-len(s)) + s
+}
+
+func (m Model) viewHistory() string {
+	if m.historyErr != nil {
+		return errStyle.Render("read log error: " + m.historyErr.Error())
+	}
+	var b strings.Builder
+	b.WriteString(dimStyle.Render("Source: " + logger.LogPath()))
+	b.WriteString("\n\n")
+	if len(m.history) == 0 {
+		b.WriteString(dimStyle.Render("No log entries yet. Run `ccm import-current` or `ccm use` to populate."))
+		return b.String()
+	}
+	// Filter relevant events
+	relevant := make([]logger.Entry, 0, len(m.history))
+	for _, e := range m.history {
+		switch e.Event {
+		case "switch.start", "switch.done", "switch.email_mismatch", "import-current", "remove", "rollback":
+			relevant = append(relevant, e)
+		}
+	}
+	if len(relevant) == 0 {
+		b.WriteString(dimStyle.Render("No switch / import / remove events in the recent log."))
+		return b.String()
+	}
+	// newest first
+	for i := len(relevant) - 1; i >= 0; i-- {
+		e := relevant[i]
+		ts := e.Time.Format("2006-01-02 15:04:05")
+		evt := e.Event
+		switch evt {
+		case "switch.done":
+			evt = statusStyle.Render(evt)
+		case "switch.email_mismatch":
+			evt = errStyle.Render(evt)
+		case "remove":
+			evt = errStyle.Render(evt)
+		case "import-current":
+			evt = cardValue.Render(evt)
+		default:
+			evt = subStyle.Render(evt)
+		}
+		prof := e.Profile
+		if prof == "" {
+			prof = "-"
+		}
+		b.WriteString(fmt.Sprintf("  %s  %-26s %-16s %s\n",
+			dimStyle.Render(ts), evt, cardValue.Render(prof), dimStyle.Render(e.Message)))
+	}
+	return b.String()
 }
 
 func (m Model) viewHelp() string {
@@ -836,8 +982,11 @@ func (m Model) viewActivity() string {
 	if m.statsErr != nil {
 		return errStyle.Render("scan error: " + m.statsErr.Error())
 	}
-	if m.stats.LastActive.IsZero() && m.statsLoading {
-		return dimStyle.Render("Loading activity… (scanning ~/.claude/projects/*.jsonl)")
+	if m.stats.LastActive.IsZero() {
+		if m.statsLoading {
+			return dimStyle.Render("Loading activity… (scanning ~/.claude/projects/*.jsonl)")
+		}
+		return dimStyle.Render("No activity yet — use Claude Code so transcripts land in ~/.claude/projects/.")
 	}
 	s := m.stats
 	c := m.costs
