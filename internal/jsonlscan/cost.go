@@ -111,10 +111,11 @@ type CostStats struct {
 }
 
 type assistantMsg struct {
-	Type      string `json:"type"`
-	Timestamp string `json:"timestamp"`
-	SessionID string `json:"sessionId"`
-	Message   struct {
+	Type        string `json:"type"`
+	Timestamp   string `json:"timestamp"`
+	SessionID   string `json:"sessionId"`
+	IsSidechain bool   `json:"isSidechain"`
+	Message     struct {
 		Model string `json:"model"`
 		Usage struct {
 			Input         int64 `json:"input_tokens"`
@@ -129,10 +130,24 @@ type assistantMsg struct {
 	} `json:"message"`
 }
 
+// IncludeSidechainEnv is the env var to include Task-tool sub-agent messages.
+// Default behaviour excludes them so totals align with CCSwitcher and a single
+// "main thread" view of activity.
+const IncludeSidechainEnv = "CCM_INCLUDE_SIDECHAIN"
+
 // ScanCosts walks ~/.claude/projects/**/*.jsonl and aggregates token usage and
 // estimated cost over today, last 7 days, and last 30 days. The result is
-// machine-wide; jsonl transcripts are not bound to a Claude account.
+// machine-wide; jsonl transcripts are not bound to a Claude account. By default
+// sub-agent (Task tool) messages with isSidechain=true are excluded; set
+// CCM_INCLUDE_SIDECHAIN=1 to include them.
 func ScanCosts() (CostStats, error) {
+	includeSidechain := os.Getenv(IncludeSidechainEnv) == "1"
+	return ScanCostsWith(includeSidechain)
+}
+
+// ScanCostsWith aggregates with explicit sidechain inclusion control.
+func ScanCostsWith(includeSidechain bool) (CostStats, error) {
+	overrides, _ := LoadPricingOverrides()
 	var cs CostStats
 	root := filepath.Join(paths.ClaudeDir(), "projects")
 	if _, err := os.Stat(root); err != nil {
@@ -217,6 +232,9 @@ func ScanCosts() (CostStats, error) {
 			if m.Type != "assistant" || m.Message.Model == "" {
 				continue
 			}
+			if m.IsSidechain && !includeSidechain {
+				continue
+			}
 			t, err := time.Parse(time.RFC3339Nano, m.Timestamp)
 			if err != nil || t.Before(monthCutoff) {
 				continue
@@ -233,7 +251,7 @@ func ScanCosts() (CostStats, error) {
 			} else {
 				tk.CacheCreate5m = m.Message.Usage.CacheCreate
 			}
-			family, pricing, ok := familyOf(m.Message.Model)
+			family, pricing, ok := resolvedPricing(m.Message.Model, overrides)
 			cost := 0.0
 			if ok {
 				cost = pricing.Cost(tk)

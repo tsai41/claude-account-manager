@@ -22,14 +22,18 @@ type Activity struct {
 }
 
 type minLine struct {
-	Type      string `json:"type"`
-	Timestamp string `json:"timestamp"`
-	SessionID string `json:"sessionId"`
+	Type        string `json:"type"`
+	Timestamp   string `json:"timestamp"`
+	SessionID   string `json:"sessionId"`
+	IsSidechain bool   `json:"isSidechain"`
 }
 
 // Scan walks ~/.claude/projects/**/*.jsonl and aggregates conversation turns.
-// A "turn" is any line whose type is user or assistant.
+// A "turn" is any line whose type is user or assistant. Sub-agent (Task tool)
+// messages with isSidechain=true are excluded by default; set
+// CCM_INCLUDE_SIDECHAIN=1 to include them.
 func Scan() (Activity, error) {
+	includeSidechain := os.Getenv(IncludeSidechainEnv) == "1"
 	var a Activity
 	root := filepath.Join(paths.ClaudeDir(), "projects")
 	if _, err := os.Stat(root); err != nil {
@@ -69,6 +73,9 @@ func Scan() (Activity, error) {
 				continue
 			}
 			if ml.Type != "user" && ml.Type != "assistant" {
+				continue
+			}
+			if ml.IsSidechain && !includeSidechain {
 				continue
 			}
 			if ml.Timestamp == "" {

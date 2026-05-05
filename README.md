@@ -55,7 +55,8 @@ ccm use work                  # CLI switch (safe-merge by default)
 | `ccm usage-set <name> <value>` | set manual usage; parses `"session X%, weekly Y%"` |
 | `ccm usage-note <name> <text>` | set usage note |
 | `ccm usage-provider <name> <manual\|local-derived>` | choose provider |
-| `ccm cost [-w today\|7d\|30d]` | machine-wide list-price cost estimate from jsonl |
+| `ccm cost [-w today\|7d\|30d] [--json]` | machine-wide list-price cost estimate from jsonl |
+| `ccm pricing show\|init\|path` | inspect or scaffold the pricing override file |
 | `ccm rollback [id]` | list safety backups, or restore one by id |
 | `ccm log [-n N]` | tail recent ccm log entries |
 | `ccm doctor` | diagnostics including fingerprint duplicate detection |
@@ -92,6 +93,10 @@ Tabs (top of screen): **1 Profiles**, **2 Costs**, **3 Activity**.
 | `q` / `Esc` | quit |
 
 The Costs tab shows the **API-equivalent** dollar amount: what those tokens would cost on the pay-as-you-go API at public list rates, with cache-creation and cache-read multipliers applied. If you use Claude Pro / Max / Team, you pay a flat subscription, **not this number** — it is a usage signal, not an invoice. Today's number plus per-family breakdown, 7-day and 30-day totals, and a daily history bar.
+
+By default, sub-agent (Task tool) messages with `isSidechain: true` are excluded from token totals; set `CCM_INCLUDE_SIDECHAIN=1` to include them.
+
+To override per-model pricing, run `ccm pricing init` to scaffold `~/.ccm/pricing.json` and edit the multipliers. Set `cache_create_5m_mult` and `cache_create_1h_mult` to `0.1` if you want totals to align with tools that price cache writes like cache reads.
 
 The Activity tab shows machine-wide turn counts (last 5h / today / last 7d) and last active timestamp. jsonl transcripts have no per-account binding, so these counts are not the official usage bar.
 
