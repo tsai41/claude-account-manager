@@ -60,7 +60,21 @@ func (m Model) View() string {
 		case tabCosts, tabActivity, tabHistory:
 			b.WriteString(m.bodyVP.View())
 			b.WriteString("\n")
-			b.WriteString(helpStyle.Render("Tab cycle tabs  ↑/↓ scroll  r refresh  q quit"))
+			scroll := ""
+			if !(m.bodyVP.AtTop() && m.bodyVP.AtBottom()) {
+				pct := int(m.bodyVP.ScrollPercent() * 100)
+				marker := "·"
+				switch {
+				case m.bodyVP.AtTop():
+					marker = "↓"
+				case m.bodyVP.AtBottom():
+					marker = "↑"
+				default:
+					marker = "↕"
+				}
+				scroll = fmt.Sprintf("  [%s %d%%]", marker, pct)
+			}
+			b.WriteString(helpStyle.Render("Tab cycle tabs  ↑/↓ scroll  r refresh  q quit" + scroll))
 		}
 	}
 
