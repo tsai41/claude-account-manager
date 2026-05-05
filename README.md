@@ -119,6 +119,8 @@ The Costs tab shows the **API-equivalent** dollar amount: what those tokens woul
 
 Methodology: assistant messages from `~/.claude/projects/**/*.jsonl` are deduplicated by `requestId` (Claude Code re-emits resumed sessions into new files), aggregated by model family, and priced with `Pricing.Cost(tokens)`. Sub-agent (Task tool) messages with `isSidechain: true` are excluded from token totals; set `CCM_INCLUDE_SIDECHAIN=1` to include them.
 
+For screenshots or shared terminal output, set `CCM_MASK_EMAIL=1` to render emails as `u***@***.com` across the CLI and TUI.
+
 To override per-model pricing, run `ccm pricing init` to scaffold `~/.ccm/pricing.json` and edit the multipliers. Set `cache_create_5m_mult` and `cache_create_1h_mult` to `0.1` if you want totals to align with tools that price cache writes like cache reads.
 
 The Activity tab shows machine-wide turn counts (last 5h / today / last 7d) and last active timestamp. jsonl transcripts have no per-account binding, so these counts are not the official usage bar.
