@@ -8,10 +8,10 @@ import (
 func approx(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 
 func TestPricingCost(t *testing.T) {
-	p := Pricing{InputPerM: 15, OutputPerM: 75, CacheCreate5mMult: 1.25, CacheCreate1hMult: 2.0, CacheReadMult: 0.1}
+	p := Pricing{InputPerM: 5, OutputPerM: 25, CacheCreate5mMult: 1.25, CacheCreate1hMult: 2.0, CacheReadMult: 0.1}
 	tk := Tokens{Input: 1_000_000, Output: 1_000_000, CacheCreate5m: 1_000_000, CacheCreate1h: 1_000_000, CacheRead: 1_000_000}
 	got := p.Cost(tk)
-	want := 15 + 75 + 15*1.25 + 15*2.0 + 15*0.1
+	want := 5 + 25 + 5*1.25 + 5*2.0 + 5*0.1
 	if !approx(got, want) {
 		t.Fatalf("Cost = %v, want %v", got, want)
 	}

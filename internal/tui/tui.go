@@ -708,7 +708,7 @@ func (m Model) viewCosts() string {
 			b.WriteString("\n")
 		}
 	}
-	b.WriteString(helpStyle.Render("List price · Opus $15/$75 · Sonnet $3/$15 · Haiku $1/$5 per 1M (in/out) · Not an invoice"))
+	b.WriteString(helpStyle.Render("List price · Opus $5/$25 · Sonnet $3/$15 · Haiku $1/$5 per 1M (in/out) · Not an invoice"))
 	return b.String()
 }
 

@@ -33,12 +33,15 @@ func (p Pricing) Cost(t Tokens) float64 {
 }
 
 // DefaultPricing maps Claude 4.x model id substrings to a Pricing record.
+// Numbers reflect the public list price for the Claude 4.5/4.6 family
+// (Opus $5/$25 per M, Sonnet $3/$15 per M, Haiku $1/$5 per M); cache write at
+// 1.25x base input, cache read at 0.1x base input.
 var DefaultPricing = []struct {
 	Match   string
 	Family  string
 	Pricing Pricing
 }{
-	{"opus", "Opus", Pricing{15, 75, 1.25, 2.0, 0.1}},
+	{"opus", "Opus", Pricing{5, 25, 1.25, 2.0, 0.1}},
 	{"sonnet", "Sonnet", Pricing{3, 15, 1.25, 2.0, 0.1}},
 	{"haiku", "Haiku", Pricing{1, 5, 1.25, 2.0, 0.1}},
 }
@@ -115,6 +118,7 @@ type assistantMsg struct {
 	Timestamp   string `json:"timestamp"`
 	SessionID   string `json:"sessionId"`
 	IsSidechain bool   `json:"isSidechain"`
+	RequestID   string `json:"requestId"`
 	Message     struct {
 		Model string `json:"model"`
 		Usage struct {
@@ -148,6 +152,7 @@ func ScanCosts() (CostStats, error) {
 // ScanCostsWith aggregates with explicit sidechain inclusion control.
 func ScanCostsWith(includeSidechain bool) (CostStats, error) {
 	overrides, _ := LoadPricingOverrides()
+	seenReq := map[string]struct{}{}
 	var cs CostStats
 	root := filepath.Join(paths.ClaudeDir(), "projects")
 	if _, err := os.Stat(root); err != nil {
@@ -234,6 +239,12 @@ func ScanCostsWith(includeSidechain bool) (CostStats, error) {
 			}
 			if m.IsSidechain && !includeSidechain {
 				continue
+			}
+			if m.RequestID != "" {
+				if _, dup := seenReq[m.RequestID]; dup {
+					continue
+				}
+				seenReq[m.RequestID] = struct{}{}
 			}
 			t, err := time.Parse(time.RFC3339Nano, m.Timestamp)
 			if err != nil || t.Before(monthCutoff) {
