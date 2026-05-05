@@ -11,7 +11,10 @@ import (
 	"github.com/tsai41/claude-account-manager/internal/paths"
 )
 
-const logFile = "ccm.log"
+const (
+	logFile    = "ccm.log"
+	maxLogSize = 5 * 1024 * 1024 // 5MB rotate threshold
+)
 
 var mu sync.Mutex
 
@@ -45,8 +48,11 @@ func write(level, event, profile, message string, fields map[string]any) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	f, err := os.OpenFile(filepath.Join(paths.LogsDir(), logFile),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	path := filepath.Join(paths.LogsDir(), logFile)
+	if st, err := os.Stat(path); err == nil && st.Size() >= maxLogSize {
+		_ = os.Rename(path, path+".1")
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return
 	}

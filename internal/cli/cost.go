@@ -13,6 +13,7 @@ import (
 
 func newCostCmd() *cobra.Command {
 	var window string
+	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "cost",
 		Short: "Show estimated API-equivalent cost from local jsonl transcripts",
@@ -22,6 +23,19 @@ func newCostCmd() *cobra.Command {
 			cs, err := jsonlscan.ScanCosts()
 			if err != nil {
 				return err
+			}
+			if asJSON {
+				enc := jsonEncoder(cmd)
+				switch window {
+				case "today":
+					return enc.Encode(cs.Today)
+				case "7d":
+					return enc.Encode(cs.Last7)
+				case "30d":
+					return enc.Encode(cs.Last30)
+				default:
+					return enc.Encode(cs)
+				}
 			}
 			switch window {
 			case "today":
@@ -43,6 +57,7 @@ func newCostCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&window, "window", "w", "", "today|7d|30d (default: summary of all)")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
 	return cmd
 }
 

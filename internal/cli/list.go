@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -11,11 +13,57 @@ import (
 )
 
 func newListCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List profiles",
-		RunE:  runList,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if asJSON {
+				return runListJSON(cmd)
+			}
+			return runList(cmd, args)
+		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return cmd
+}
+
+func runListJSON(cmd *cobra.Command) error {
+	profs, err := profile.List()
+	if err != nil {
+		return err
+	}
+	st, _ := profile.LoadState()
+	type row struct {
+		Name        string `json:"name"`
+		Current     bool   `json:"current"`
+		Email       string `json:"email,omitempty"`
+		AuthType    string `json:"auth_type"`
+		SessionLeft string `json:"session_left,omitempty"`
+		WeeklyLeft  string `json:"weekly_left,omitempty"`
+		LastUsedAt  string `json:"last_used_at,omitempty"`
+		Note        string `json:"note,omitempty"`
+	}
+	out := make([]row, 0, len(profs))
+	for _, p := range profs {
+		u, _ := usage.Load(p.Name)
+		r := row{
+			Name:        p.Name,
+			Current:     p.Name == st.CurrentProfile,
+			Email:       p.Email,
+			AuthType:    p.AuthType,
+			SessionLeft: usage.Remaining(u.Session.Display),
+			WeeklyLeft:  usage.Remaining(u.Weekly.Display),
+			Note:        u.Note,
+		}
+		if !p.LastUsedAt.IsZero() {
+			r.LastUsedAt = p.LastUsedAt.Format(time.RFC3339)
+		}
+		out = append(out, r)
+	}
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
 
 func runList(cmd *cobra.Command, args []string) error {

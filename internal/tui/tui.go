@@ -11,7 +11,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
+	"github.com/tsai41/claude-account-manager/internal/keychain"
 	"github.com/tsai41/claude-account-manager/internal/profile"
+	"github.com/tsai41/claude-account-manager/internal/snapshot"
 	"github.com/tsai41/claude-account-manager/internal/switcher"
 	"github.com/tsai41/claude-account-manager/internal/usage"
 )
@@ -34,6 +36,8 @@ const (
 	modeConfirmSwitch
 	modeEditNote
 	modeEditUsage
+	modeHelp
+	modeDetail
 )
 
 var (
@@ -88,6 +92,7 @@ type Model struct {
 	usageFor  string
 	delFor    string
 	confirmSwitch string
+	detailFor string
 	current   string
 	costs     jsonlscan.CostStats
 	costsErr  error
@@ -278,6 +283,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateEditNote(msg)
 	case modeEditUsage:
 		return m.updateEditUsage(msg)
+	case modeHelp, modeDetail:
+		if k, ok := msg.(tea.KeyMsg); ok {
+			switch k.String() {
+			case "esc", "q", "?", "i", "enter":
+				m.mode = modeTable
+				m.detailFor = ""
+				return m, nil
+			}
+		}
+		return m, nil
 	}
 
 	switch m.tab {
@@ -377,6 +392,21 @@ func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.delFor = name
 			m.mode = modeConfirmDelete
+			m.errMsg = ""
+			m.status = ""
+			return m, nil
+		case "i":
+			name := m.currentRowName()
+			if name == "" {
+				return m, nil
+			}
+			m.detailFor = name
+			m.mode = modeDetail
+			m.errMsg = ""
+			m.status = ""
+			return m, nil
+		case "?":
+			m.mode = modeHelp
 			m.errMsg = ""
 			m.status = ""
 			return m, nil
@@ -564,12 +594,16 @@ func (m Model) View() string {
 		b.WriteString(m.usageIn.View())
 		b.WriteString("\n")
 		b.WriteString(helpStyle.Render("Tip: \"session 42%, weekly 68%\" parses both fields."))
+	case modeHelp:
+		b.WriteString(m.viewHelp())
+	case modeDetail:
+		b.WriteString(m.viewDetail())
 	default:
 		switch m.tab {
 		case tabProfiles:
 			b.WriteString(m.table.View())
 			b.WriteString("\n\n")
-			b.WriteString(helpStyle.Render("Tab/1-3 switch tab  j/k move  Enter switch  e edit-usage  u edit-note  d delete  r refresh  q quit"))
+			b.WriteString(helpStyle.Render("? help  Tab/1-3 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r refresh  q quit"))
 		case tabCosts:
 			b.WriteString(m.viewCosts())
 			b.WriteString("\n")
@@ -602,12 +636,12 @@ func (m Model) viewCosts() string {
 	c := m.costs
 	var b strings.Builder
 
-	b.WriteString(dimStyle.Render("Scope: machine-wide (jsonl has no account binding)"))
+	b.WriteString(dimStyle.Render("Scope: machine-wide · API-equivalent at list price · subscription bills are flat"))
 	b.WriteString("\n\n")
 
 	// Today card
 	todayLines := []string{
-		cardLabel.Render(fmt.Sprintf("Today  ·  %s", time.Now().Format("Mon Jan 2"))),
+		cardLabel.Render(fmt.Sprintf("Today's API-equivalent cost  ·  %s", time.Now().Format("Mon Jan 2"))),
 		costAmountStyle.Render(fmt.Sprintf("$%.2f", c.Today.Cost)),
 	}
 	if len(c.Today.ByFamily) > 0 {
@@ -690,6 +724,94 @@ func padLeft(s string, w int) string {
 		return s
 	}
 	return strings.Repeat(" ", w-len(s)) + s
+}
+
+func (m Model) viewHelp() string {
+	rows := [][2]string{
+		{"Navigation", ""},
+		{"Tab / →", "next tab"},
+		{"Shift+Tab / ←", "prev tab"},
+		{"1 / 2 / 3", "jump to Profiles / Costs / Activity"},
+		{"j / k / ↓ / ↑", "move row"},
+		{"", ""},
+		{"Profiles tab", ""},
+		{"Enter", "switch to profile (Y/n confirm)"},
+		{"i", "show profile detail (fp / snapshot / email)"},
+		{"e", "edit usage value (parses session/weekly %)"},
+		{"u", "edit note"},
+		{"d", "delete profile (y/N confirm)"},
+		{"r", "refresh"},
+		{"", ""},
+		{"Costs / Activity tabs", ""},
+		{"r", "rescan jsonl transcripts"},
+		{"", ""},
+		{"Exit", ""},
+		{"? / Esc / q / Enter", "close help / detail"},
+		{"q / Ctrl+C", "quit"},
+	}
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Keys"))
+	b.WriteString("\n\n")
+	for _, r := range rows {
+		if r[1] == "" {
+			b.WriteString(subStyle.Render(r[0]))
+			b.WriteString("\n")
+			continue
+		}
+		b.WriteString(fmt.Sprintf("  %-22s %s\n", cardValue.Render(r[0]), dimStyle.Render(r[1])))
+	}
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Press any of: ? Esc q Enter to return"))
+	return b.String()
+}
+
+func (m Model) viewDetail() string {
+	var b strings.Builder
+	p, err := profile.Load(m.detailFor)
+	if err != nil {
+		b.WriteString(errStyle.Render("load error: " + err.Error()))
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("Esc / q / i / Enter to return"))
+		return b.String()
+	}
+	u, _ := usage.Load(p.Name)
+	snapDir, _ := snapshot.Latest(p.Name)
+	bkTok, bkErr := keychain.ReadBackup(p.Name)
+
+	b.WriteString(titleStyle.Render("Profile detail · " + p.Name))
+	b.WriteString("\n\n")
+	row := func(k, v string) {
+		b.WriteString(fmt.Sprintf("  %-18s %s\n", cardLabel.Render(k), v))
+	}
+	row("Name", p.Name)
+	row("Auth", p.AuthType)
+	row("Email", p.Email)
+	row("Account UUID", p.AccountUUID)
+	row("Org", p.OrgName)
+	row("Created", p.CreatedAt.Format("2006-01-02 15:04:05"))
+	if !p.LastUsedAt.IsZero() {
+		row("Last used", p.LastUsedAt.Format("2006-01-02 15:04:05"))
+	}
+	if snapDir != "" {
+		row("Snapshot", snapDir)
+	} else {
+		row("Snapshot", errStyle.Render("(none)"))
+	}
+	if bkErr == nil {
+		row("Keychain backup", "fp="+keychain.Fingerprint(bkTok))
+	} else {
+		row("Keychain backup", errStyle.Render(bkErr.Error()))
+	}
+	row("Usage left", "session "+usage.Remaining(u.Session.Display)+"  weekly "+usage.Remaining(u.Weekly.Display))
+	if u.Manual != "" {
+		row("Usage raw", u.Manual)
+	}
+	if u.Note != "" {
+		row("Note", u.Note)
+	}
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Esc / q / i / Enter to return"))
+	return b.String()
 }
 
 func (m Model) viewActivity() string {

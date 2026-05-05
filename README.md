@@ -6,7 +6,11 @@ Switch between multiple Claude Code logins without re-authenticating, by snapsho
 
 > All data stays on the local machine. No API keys, no cloud.
 
-## Build / install
+## Install
+
+Pre-built binaries are published on the [Releases page](https://github.com/tsai41/claude-account-manager/releases). Download the macOS tarball matching your CPU (`darwin_arm64` for Apple Silicon, `darwin_amd64` for Intel), extract, and drop `ccm` somewhere on your `PATH`.
+
+Or build from source:
 
 ```sh
 make build          # local ./ccm
@@ -16,6 +20,14 @@ make uninstall      # remove both
 ```
 
 Make sure `$(go env GOPATH)/bin` is on your `PATH`, or use `make symlink` to expose `ccm` under `/usr/local/bin`.
+
+## Releasing
+
+Tagged `v*` pushes trigger `.github/workflows/release.yml`, which runs goreleaser to build macOS arm64 + amd64 archives, generate a checksum file, and publish a GitHub release. Try a dry run locally:
+
+```sh
+make release-snapshot
+```
 
 ## Quick start
 
@@ -79,7 +91,7 @@ Tabs (top of screen): **1 Profiles**, **2 Costs**, **3 Activity**.
 | `r` | refresh tab data |
 | `q` / `Esc` | quit |
 
-The Costs tab shows today's API-equivalent dollar amount with per-family breakdown (Opus / Sonnet / Haiku), 7-day and 30-day totals, and a daily history bar. Pricing is the public list rate; cache-creation and cache-read multipliers are applied. **Not an invoice.**
+The Costs tab shows the **API-equivalent** dollar amount: what those tokens would cost on the pay-as-you-go API at public list rates, with cache-creation and cache-read multipliers applied. If you use Claude Pro / Max / Team, you pay a flat subscription, **not this number** — it is a usage signal, not an invoice. Today's number plus per-family breakdown, 7-day and 30-day totals, and a daily history bar.
 
 The Activity tab shows machine-wide turn counts (last 5h / today / last 7d) and last active timestamp. jsonl transcripts have no per-account binding, so these counts are not the official usage bar.
 
@@ -105,4 +117,4 @@ The Claude CLI's own keychain entry remains `Claude Code-credentials` / `<OS use
 
 - Snapshot files contain raw OAuth tokens. Stored with mode `0600` inside `~/.ccm/` (mode `0700`).
 - Restart any running Claude Code session after switching.
-- doctor compares token fingerprints across profiles to catch the "two profiles share the same token" corruption case described in CCSwitcher's design notes.
+- doctor compares token fingerprints across profile keychain backups to catch the "two profiles share the same token" corruption case.

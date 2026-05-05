@@ -14,13 +14,38 @@ import (
 )
 
 func newDoctorCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Diagnose environment and profile health",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if asJSON {
+				return runDoctorJSON(cmd)
+			}
 			return runDoctor()
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return cmd
+}
+
+func runDoctorJSON(cmd *cobra.Command) error {
+	checks := collectDoctorChecks()
+	type c struct {
+		Name string `json:"name"`
+		OK   bool   `json:"ok"`
+		Msg  string `json:"msg,omitempty"`
+		Hint string `json:"hint,omitempty"`
+	}
+	out := make([]c, 0, len(checks))
+	failed := 0
+	for _, ck := range checks {
+		out = append(out, c{Name: ck.name, OK: ck.ok, Msg: ck.msg, Hint: ck.hint})
+		if !ck.ok {
+			failed++
+		}
+	}
+	return jsonEncoder(cmd).Encode(map[string]any{"checks": out, "failed": failed})
 }
 
 type check struct {
@@ -31,6 +56,29 @@ type check struct {
 }
 
 func runDoctor() error {
+	checks := collectDoctorChecks()
+	failed := 0
+	for _, c := range checks {
+		mark := "OK "
+		if !c.ok {
+			mark = "FAIL"
+			failed++
+		}
+		fmt.Printf("[%s] %s — %s\n", mark, c.name, c.msg)
+		if !c.ok && c.hint != "" {
+			fmt.Printf("       hint: %s\n", c.hint)
+		}
+	}
+	fmt.Println()
+	if failed == 0 {
+		fmt.Println("All checks passed.")
+	} else {
+		fmt.Printf("%d check(s) failed.\n", failed)
+	}
+	return nil
+}
+
+func collectDoctorChecks() []check {
 	var checks []check
 	add := func(c check) { checks = append(checks, c) }
 
@@ -141,24 +189,5 @@ func runDoctor() error {
 		}
 	}
 
-	// print
-	failed := 0
-	for _, c := range checks {
-		mark := "OK "
-		if !c.ok {
-			mark = "FAIL"
-			failed++
-		}
-		fmt.Printf("[%s] %s — %s\n", mark, c.name, c.msg)
-		if !c.ok && c.hint != "" {
-			fmt.Printf("       hint: %s\n", c.hint)
-		}
-	}
-	fmt.Println()
-	if failed == 0 {
-		fmt.Println("All checks passed.")
-	} else {
-		fmt.Printf("%d check(s) failed.\n", failed)
-	}
-	return nil
+	return checks
 }

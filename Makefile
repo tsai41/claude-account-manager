@@ -3,7 +3,7 @@ PKG    := ./cmd/ccm
 GOBIN  := $(shell go env GOPATH)/bin
 PREFIX ?= /usr/local
 
-.PHONY: all build install symlink uninstall clean test tidy fmt vet run
+.PHONY: all build install symlink uninstall clean test tidy fmt vet run release-snapshot
 
 all: build
 
@@ -40,3 +40,6 @@ vet:
 
 run:
 	go run $(PKG)
+
+release-snapshot:
+	goreleaser release --snapshot --clean
