@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/tsai41/claude-account-manager/internal/format"
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
 )
 
@@ -64,10 +64,10 @@ func newCostCmd() *cobra.Command {
 func printReport(cmd *cobra.Command, r jsonlscan.CostReport, withActivity bool) {
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "%s — $%.2f  (%d turns, %s tokens)\n",
-		strings.ToUpper(r.Window), r.Cost, r.Turns, humanTokens(r.Tokens.Total()))
+		strings.ToUpper(r.Window), r.Cost, r.Turns, format.HumanTokens(r.Tokens.Total()))
 	if withActivity {
 		fmt.Fprintf(out, "Sessions: %d   Active: %s",
-			r.Sessions, formatDuration(r.ActiveDur))
+			r.Sessions, format.HumanDuration(r.ActiveDur))
 		if !r.LastActive.IsZero() {
 			fmt.Fprintf(out, "   Last active: %s", r.LastActive.Format("15:04:05"))
 		}
@@ -79,14 +79,14 @@ func printReport(cmd *cobra.Command, r jsonlscan.CostReport, withActivity bool) 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "  FAMILY\tTURNS\tTOKENS\tCOST")
 	for _, b := range r.ByFamily {
-		fmt.Fprintf(w, "  %s\t%d\t%s\t$%.2f\n", b.Family, b.Turns, humanTokens(b.Tokens.Total()), b.Cost)
+		fmt.Fprintf(w, "  %s\t%d\t%s\t$%.2f\n", b.Family, b.Turns, format.HumanTokens(b.Tokens.Total()), b.Cost)
 	}
 	w.Flush()
 }
 
 func printOneLine(cmd *cobra.Command, label string, r jsonlscan.CostReport) {
 	fmt.Fprintf(cmd.OutOrStdout(), "%s: $%-9.2f (%d turns, %s tokens)\n",
-		label, r.Cost, r.Turns, humanTokens(r.Tokens.Total()))
+		label, r.Cost, r.Turns, format.HumanTokens(r.Tokens.Total()))
 }
 
 func printDaily(cmd *cobra.Command, daily []jsonlscan.DailyTotal) {
@@ -104,27 +104,3 @@ func printDaily(cmd *cobra.Command, daily []jsonlscan.DailyTotal) {
 	w.Flush()
 }
 
-func humanTokens(n int64) string {
-	switch {
-	case n < 1000:
-		return fmt.Sprintf("%d", n)
-	case n < 1_000_000:
-		return fmt.Sprintf("%.1fK", float64(n)/1000)
-	case n < 1_000_000_000:
-		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
-	default:
-		return fmt.Sprintf("%.1fB", float64(n)/1_000_000_000)
-	}
-}
-
-func formatDuration(d time.Duration) string {
-	if d <= 0 {
-		return "0m"
-	}
-	h := int(d / time.Hour)
-	m := int((d % time.Hour) / time.Minute)
-	if h == 0 {
-		return fmt.Sprintf("%dm", m)
-	}
-	return fmt.Sprintf("%dh %dm", h, m)
-}
