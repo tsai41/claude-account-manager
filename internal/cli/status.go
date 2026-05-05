@@ -44,7 +44,7 @@ func runStatus(name string) error {
 	fmt.Printf("Profile: %s\n", p.Name)
 	fmt.Printf("Auth: %s\n", p.AuthType)
 	if p.Email != "" {
-		fmt.Printf("Email: %s\n", p.Email)
+		fmt.Printf("Email: %s\n", MaskEmail(p.Email))
 	}
 	if p.OrgName != "" {
 		fmt.Printf("Org: %s\n", p.OrgName)

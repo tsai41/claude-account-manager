@@ -90,7 +90,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		if !p.LastUsedAt.IsZero() {
 			last = p.LastUsedAt.Format("2006-01-02 15:04")
 		}
-		email := p.Email
+		email := MaskEmail(p.Email)
 		if email == "" {
 			email = "--"
 		}

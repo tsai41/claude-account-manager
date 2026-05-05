@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -66,6 +67,23 @@ var (
 	familyHaiku  = lipgloss.NewStyle().Foreground(lipgloss.Color("84"))
 	familyOther  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 )
+
+func maskEmail(email string) string {
+	if os.Getenv("CCM_MASK_EMAIL") != "1" || email == "" {
+		return email
+	}
+	at := strings.IndexByte(email, '@')
+	if at < 1 {
+		return "***"
+	}
+	first := string(email[0])
+	dot := strings.LastIndexByte(email[at:], '.')
+	tld := ""
+	if dot >= 0 && at+dot < len(email)-1 {
+		tld = email[at+dot:]
+	}
+	return first + "***@***" + tld
+}
 
 func familyColor(name string) lipgloss.Style {
 	switch name {
@@ -173,7 +191,7 @@ func (m *Model) reload() error {
 		if !p.LastUsedAt.IsZero() {
 			last = p.LastUsedAt.Format("2006-01-02 15:04")
 		}
-		email := p.Email
+		email := maskEmail(p.Email)
 		if email == "" {
 			email = "--"
 		}
@@ -785,7 +803,7 @@ func (m Model) viewDetail() string {
 	}
 	row("Name", p.Name)
 	row("Auth", p.AuthType)
-	row("Email", p.Email)
+	row("Email", maskEmail(p.Email))
 	row("Account UUID", p.AccountUUID)
 	row("Org", p.OrgName)
 	row("Created", p.CreatedAt.Format("2006-01-02 15:04:05"))

@@ -56,10 +56,10 @@ func runCurrent(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Current: %s\n", p.Name)
 	fmt.Printf("Auth: %s\n", p.AuthType)
 	if p.Email != "" {
-		fmt.Printf("Email: %s\n", p.Email)
+		fmt.Printf("Email: %s\n", MaskEmail(p.Email))
 	}
 	if meta.Email != "" && meta.Email != p.Email {
-		fmt.Printf("Warning: live email %s differs from profile email %s (state desync)\n", meta.Email, p.Email)
+		fmt.Printf("Warning: live email %s differs from profile email %s (state desync)\n", MaskEmail(meta.Email), MaskEmail(p.Email))
 	}
 	if liveFP != "" {
 		fmt.Printf("Live token fp: %s\n", liveFP)
