@@ -6,8 +6,8 @@ import "github.com/charmbracelet/lipgloss"
 const (
 	clrAccent   = lipgloss.Color("99")  // purple: title, active tab
 	clrSubtitle = lipgloss.Color("213") // pink: tab subtitles
-	clrSelBg    = lipgloss.Color("57")  // purple: selected row background
-	clrSelFg    = lipgloss.Color("229") // cream: selected row foreground
+	clrSelBg    = lipgloss.Color("237") // dark gray: selected row background
+	clrSelFg    = lipgloss.Color("255") // bright white: selected row foreground
 	clrCursor   = lipgloss.Color("212") // pink: config cursor ▸
 	clrBorder   = lipgloss.Color("240") // border / header separator
 	clrDim      = lipgloss.Color("244") // dim / muted text
