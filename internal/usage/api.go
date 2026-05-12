@@ -51,30 +51,35 @@ func FetchOAuthUsage(ctx context.Context, accessToken string) (OAuthUsage, error
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// Backoff schedule for 429: 5s, 15s, 45s (capped at 60s). Retry-After
+	// header (when present) overrides the schedule but is still capped.
+	backoff := []time.Duration{5 * time.Second, 15 * time.Second, 45 * time.Second}
+	const maxWait = 60 * time.Second
+
 	body, status, retryAfter, err := doOAuthUsageRequest(ctx, accessToken)
 	if err != nil {
 		return out, err
 	}
-	if status == http.StatusTooManyRequests {
-		wait := retryAfter
-		if wait <= 0 {
-			wait = 5 * time.Second
+	for attempt := 0; status == http.StatusTooManyRequests && attempt < len(backoff); attempt++ {
+		wait := backoff[attempt]
+		if retryAfter > wait {
+			wait = retryAfter
 		}
-		if wait > 30*time.Second {
-			wait = 30 * time.Second
+		if wait > maxWait {
+			wait = maxWait
 		}
 		select {
 		case <-time.After(wait):
 		case <-ctx.Done():
 			return out, ctx.Err()
 		}
-		body, status, _, err = doOAuthUsageRequest(ctx, accessToken)
+		body, status, retryAfter, err = doOAuthUsageRequest(ctx, accessToken)
 		if err != nil {
 			return out, err
 		}
-		if status == http.StatusTooManyRequests {
-			return out, ErrRateLimited
-		}
+	}
+	if status == http.StatusTooManyRequests {
+		return out, ErrRateLimited
 	}
 	if status == http.StatusUnauthorized {
 		return out, ErrTokenExpired

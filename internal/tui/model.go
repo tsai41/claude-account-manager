@@ -314,7 +314,7 @@ func fetchOAuthOnce(profileName, current string) oauthUsageMsg {
 	if access == "" {
 		return oauthUsageMsg{profile: profileName, err: errors.New("no accessToken in token JSON")}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	u, err := usage.FetchOAuthUsage(ctx, access)
 	return oauthUsageMsg{profile: profileName, u: u, err: err}
