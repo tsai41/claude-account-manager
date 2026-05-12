@@ -159,7 +159,6 @@ func (m *Model) reload() error {
 		{Title: "Email", Width: 28},
 		{Title: "Session", Width: 18},
 		{Title: "Weekly", Width: 18},
-		{Title: "Updated", Width: 10},
 	}
 	rows := make([]table.Row, 0, len(profs))
 	for _, p := range profs {
@@ -174,11 +173,7 @@ func (m *Model) reload() error {
 		if email == "" {
 			email = "--"
 		}
-		updated := "--"
-		if !u.UpdatedAt.IsZero() {
-			updated = relTime(u.UpdatedAt)
-		}
-		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, updated})
+		rows = append(rows, table.Row{mark, p.Name, email, session, weekly})
 	}
 
 	t := table.New(
