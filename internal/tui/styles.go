@@ -21,14 +21,12 @@ var (
 	familyHaiku     = lipgloss.NewStyle().Foreground(lipgloss.Color("84"))
 	familyOther     = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 
-	cfgPanelStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(1, 2)
+	// panelStyle is the single rounded container every tab uses. Padding is
+	// uniform so tabs do not jiggle when switching.
 	panelStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("240")).
-		Padding(0, 1)
+		Padding(1, 2)
 	cfgKeyCol  = lipgloss.NewStyle().Width(22).Foreground(lipgloss.Color("250"))
 	cfgValCol  = lipgloss.NewStyle().Width(14).Bold(true).Foreground(lipgloss.Color("231"))
 	cfgHintCol = lipgloss.NewStyle().Width(42).Foreground(lipgloss.Color("244")).Italic(true)

@@ -38,7 +38,7 @@ func (m Model) viewConfig() string {
 		footer.WriteString(errStyle.Render("CCM_USAGE_DISPLAY=" + envOverride + " is overriding Usage display."))
 	}
 
-	panel := cfgPanelStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
+	panel := panelStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
 		titleStyle.Render("Settings"),
 		"",
 		body,

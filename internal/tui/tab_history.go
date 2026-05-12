@@ -29,7 +29,7 @@ func (m Model) viewHistory() string {
 	}
 	if len(relevant) == 0 {
 		b.WriteString(dimStyle.Render("No switch / import / remove events in the recent log."))
-		return panelStyle.Render(b.String())
+		return b.String()
 	}
 	for i := len(relevant) - 1; i >= 0; i-- {
 		e := relevant[i]
@@ -52,5 +52,5 @@ func (m Model) viewHistory() string {
 		b.WriteString(fmt.Sprintf("  %s  %-26s %-16s %s\n",
 			dimStyle.Render(ts), evt, cardValue.Render(prof), dimStyle.Render(e.Message)))
 	}
-	return panelStyle.Render(b.String())
+	return b.String()
 }
