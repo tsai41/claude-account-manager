@@ -160,9 +160,8 @@ func (m *Model) reload() error {
 		{Title: "", Width: 2},
 		{Title: "Name", Width: 14},
 		{Title: "Email", Width: 28},
-		{Title: sessionTitle, Width: 13},
-		{Title: weeklyTitle, Width: 12},
-		{Title: "Reset (S/W)", Width: 18},
+		{Title: sessionTitle, Width: 16},
+		{Title: weeklyTitle, Width: 16},
 		{Title: "Updated", Width: 10},
 	}
 	rows := make([]table.Row, 0, len(profs))
@@ -172,24 +171,17 @@ func (m *Model) reload() error {
 			mark = "*"
 		}
 		u, _ := usage.Load(p.Name)
-		session := usage.Render(u.Session, mode)
-		weekly := usage.Render(u.Weekly, mode)
-		if isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour) {
-			session = "--"
-		}
-		if isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour) {
-			weekly = "--"
-		}
+		session := renderUsageCell(u.Session, u.SessionResetsAt, mode, isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour))
+		weekly := renderUsageCell(u.Weekly, u.WeeklyResetsAt, mode, isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour))
 		email := format.MaskEmail(p.Email)
 		if email == "" {
 			email = "--"
 		}
-		reset := usage.FormatResetPair(u.SessionResetsAt, u.WeeklyResetsAt)
 		updated := "--"
 		if !u.UpdatedAt.IsZero() {
 			updated = relTime(u.UpdatedAt)
 		}
-		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, reset, updated})
+		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, updated})
 	}
 
 	t := table.New(
@@ -340,6 +332,23 @@ func fetchOAuthOnce(profileName, current string) oauthUsageMsg {
 // colourUsage applies a colour to a rendered usage string based on remaining %.
 // s is the already-rendered string (e.g. "58%" for left mode or "42%" for used mode).
 // leftMode true means s represents remaining; false means s represents consumed.
+// renderUsageCell returns "48% (3h8m)" for display in the profiles table.
+// Plain text only — no ANSI codes; bubbles/table uses runewidth.Truncate.
+func renderUsageCell(f usage.Field, resetsAt time.Time, mode string, stale bool) string {
+	if stale {
+		return "--"
+	}
+	pct := usage.Render(f, mode)
+	if pct == "" || pct == "unknown" {
+		pct = "--"
+	}
+	countdown := usage.FormatReset(resetsAt)
+	if countdown == "" || resetsAt.IsZero() {
+		return pct
+	}
+	return pct + " (" + countdown + ")"
+}
+
 func colourUsage(s string, leftMode bool) string {
 	if s == "--" || s == "??" || s == "" || s == "unknown" {
 		return s
