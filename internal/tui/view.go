@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/tsai41/claude-account-manager/internal/format"
 )
 
 func (m Model) tabSubtitle() string {
@@ -18,7 +20,7 @@ func (m Model) tabSubtitle() string {
 		if m.fetchingOAuth {
 			fetchInfo = "  ·  fetching..."
 		} else if !m.lastFetched.IsZero() {
-			fetchInfo = "  ·  fetched " + relTime(m.lastFetched)
+			fetchInfo = "  ·  fetched " + format.RelTime(m.lastFetched)
 		}
 		return subtitleStyle.Render("Profiles") + mutedSubStyle.Render(fmt.Sprintf("  ·  current: %s%s", cur, fetchInfo))
 	case tabCosts:

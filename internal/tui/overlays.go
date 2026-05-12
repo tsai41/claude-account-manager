@@ -113,7 +113,7 @@ func (m Model) viewDetail() string {
 		row("Weekly reset", u.WeeklyResetsAt.Local().Format("2006-01-02 15:04:05"))
 	}
 	if !u.UpdatedAt.IsZero() {
-		row("Usage fetched", u.UpdatedAt.Local().Format("2006-01-02 15:04:05")+"  ("+relTime(u.UpdatedAt)+")")
+		row("Usage fetched", u.UpdatedAt.Local().Format("2006-01-02 15:04:05")+"  ("+format.RelTime(u.UpdatedAt)+")")
 	}
 	if u.Manual != "" {
 		row("Usage raw", u.Manual)

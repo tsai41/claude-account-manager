@@ -32,7 +32,7 @@ func copyToClipboardCmd(token, name string) tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
-		_ = m.reload()
+		m.rebuildRows()
 		return m, tickCmd()
 	case statusMsg:
 		m.status = string(msg)

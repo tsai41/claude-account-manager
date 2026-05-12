@@ -89,3 +89,33 @@ func PadLeft(s string, w int) string {
 	}
 	return strings.Repeat(" ", w-len(s)) + s
 }
+
+// RelTime returns a human-readable relative time string for t.
+func RelTime(t time.Time) string {
+	d := time.Since(t)
+	if d < time.Minute {
+		return "just now"
+	}
+	if d < time.Hour {
+		return FmtInt(int(d/time.Minute)) + "m ago"
+	}
+	if d < 24*time.Hour {
+		return FmtInt(int(d/time.Hour)) + "h ago"
+	}
+	return FmtInt(int(d/(24*time.Hour))) + "d ago"
+}
+
+// FmtInt converts a non-negative integer to its decimal string representation.
+func FmtInt(n int) string {
+	if n <= 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}

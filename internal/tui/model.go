@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -98,6 +96,8 @@ type Model struct {
 	bodyVP        viewport.Model
 	settings      config.Settings
 	configCursor  int
+	profiles      []profile.Profile
+	usageCache    map[string]usage.Record
 }
 
 type costsLoadedMsg struct {
@@ -152,6 +152,11 @@ func (m *Model) reload() error {
 	}
 	st, _ := profile.LoadState()
 	m.current = st.CurrentProfile
+	m.profiles = profs
+
+	if m.usageCache == nil {
+		m.usageCache = make(map[string]usage.Record)
+	}
 
 	mode := m.settings.EffectiveUsageDisplay()
 	resetMode := m.settings.ResetDisplay
@@ -169,6 +174,7 @@ func (m *Model) reload() error {
 			mark = "*"
 		}
 		u, _ := usage.Load(p.Name)
+		m.usageCache[p.Name] = u
 		session := renderUsageCell(u.Session, u.SessionResetsAt, mode, resetMode, isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour))
 		weekly := renderUsageCell(u.Weekly, u.WeeklyResetsAt, mode, resetMode, isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour))
 		email := format.MaskEmail(p.Email)
@@ -323,9 +329,30 @@ func fetchOAuthOnce(profileName, current string) oauthUsageMsg {
 	return oauthUsageMsg{profile: profileName, u: u, err: err}
 }
 
-// colourUsage applies a colour to a rendered usage string based on remaining %.
-// s is the already-rendered string (e.g. "58%" for left mode or "42%" for used mode).
-// leftMode true means s represents remaining; false means s represents consumed.
+func (m *Model) rebuildRows() {
+	if m.usageCache == nil {
+		return
+	}
+	mode := m.settings.EffectiveUsageDisplay()
+	resetMode := m.settings.ResetDisplay
+	rows := make([]table.Row, 0, len(m.profiles))
+	for _, p := range m.profiles {
+		mark := " "
+		if p.Name == m.current {
+			mark = "*"
+		}
+		u := m.usageCache[p.Name]
+		session := renderUsageCell(u.Session, u.SessionResetsAt, mode, resetMode, isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour))
+		weekly := renderUsageCell(u.Weekly, u.WeeklyResetsAt, mode, resetMode, isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour))
+		email := format.MaskEmail(p.Email)
+		if email == "" {
+			email = "--"
+		}
+		rows = append(rows, table.Row{mark, p.Name, email, session, weekly})
+	}
+	m.table.SetRows(rows)
+}
+
 func renderUsageCell(f usage.Field, resetsAt time.Time, mode, resetMode string, stale bool) string {
 	if stale {
 		return "--"
@@ -347,38 +374,6 @@ func renderUsageCell(f usage.Field, resetsAt time.Time, mode, resetMode string, 
 		return pct
 	}
 	return pct + " (" + resetStr + ")"
-}
-
-func colourUsage(s string, leftMode bool) string {
-	if s == "--" || s == "??" || s == "" || s == "unknown" {
-		return s
-	}
-	trimmed := strings.TrimSuffix(s, "%")
-	if trimmed == s {
-		return s
-	}
-	n, err := strconv.ParseFloat(trimmed, 64)
-	if err != nil {
-		return s
-	}
-	remaining := n
-	if !leftMode {
-		remaining = 100 - n
-	}
-	var col string
-	switch {
-	case remaining <= 20:
-		col = "196"
-	case remaining <= 50:
-		col = "214"
-	default:
-		if leftMode {
-			col = "46"
-		} else {
-			col = "231"
-		}
-	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(col)).Render(s)
 }
 
 // isStale reports whether a usage value should be considered out-of-date.
@@ -408,33 +403,3 @@ func tableHeightFor(rows int) int {
 	return h
 }
 
-func relTime(t time.Time) string {
-	d := time.Since(t)
-	if d < time.Minute {
-		return "just now"
-	}
-	if d < time.Hour {
-		return fmtInt(int(d/time.Minute)) + "m ago"
-	}
-	if d < 24*time.Hour {
-		return fmtInt(int(d/time.Hour)) + "h ago"
-	}
-	return fmtInt(int(d/(24*time.Hour))) + "d ago"
-}
-
-func fmtInt(n int) string {
-	if n < 0 {
-		n = 0
-	}
-	if n == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(buf[i:])
-}
