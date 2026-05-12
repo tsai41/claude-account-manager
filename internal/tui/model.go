@@ -126,6 +126,7 @@ func New() (Model, error) {
 	if err := m.reload(); err != nil {
 		return m, err
 	}
+	m.loadHistory()
 	ti := textinput.New()
 	ti.Placeholder = "usage note..."
 	ti.CharLimit = 200
@@ -207,8 +208,8 @@ func (m *Model) reload() error {
 		BorderBottom(true).
 		Bold(true)
 	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
+		Foreground(lipgloss.Color("255")).
+		Background(lipgloss.Color("237")).
 		Bold(true)
 	t.SetStyles(s)
 	m.table = t
