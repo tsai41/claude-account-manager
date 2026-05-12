@@ -26,7 +26,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	if len(m.table.Rows()) == 0 {
+	if len(m.profileRows) == 0 {
 		return fmt.Errorf("no profiles to display; run `ccm import-current <name>` first")
 	}
 	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()

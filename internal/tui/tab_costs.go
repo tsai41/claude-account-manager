@@ -82,7 +82,7 @@ func (m Model) viewCosts() string {
 			fams := strings.Join(d.Families, ",")
 			line := fmt.Sprintf("  %s   $%-8.2f  %s  %s", date, d.Cost, bar, dimStyle.Render(fams))
 			if d.Date == today {
-				line = todayRow.Render(fmt.Sprintf("▶ %s   $%-8.2f  ", date, d.Cost)) + bar + "  " + dimStyle.Render(fams)
+				line = todayRow.Render(fmt.Sprintf("· %s   $%-8.2f  ", date, d.Cost)) + bar + "  " + dimStyle.Render(fams)
 			}
 			b.WriteString(line)
 			b.WriteString("\n")

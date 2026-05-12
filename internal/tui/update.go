@@ -59,16 +59,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.bodyVP.Width = bodyW
 		m.bodyVP.Height = bodyH
-		// Table height = rows + header, capped by available body.
-		// Avoids the giant empty pad below a 2-row profile list.
-		tableH := len(m.table.Rows()) + 1
-		if tableH < 4 {
-			tableH = 4
-		}
-		if tableH > bodyH-1 {
-			tableH = bodyH - 1
-		}
-		m.table.SetHeight(tableH)
 		m.refreshBodyVP()
 		return m, nil
 	case costsLoadedMsg:
@@ -218,10 +208,14 @@ func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		case "j", "down":
-			m.table.MoveDown(1)
+			if m.profileCursor < len(m.profileRows)-1 {
+				m.profileCursor++
+			}
 			return m, nil
 		case "k", "up":
-			m.table.MoveUp(1)
+			if m.profileCursor > 0 {
+				m.profileCursor--
+			}
 			return m, nil
 		case "enter":
 			name := m.currentRowName()
@@ -328,9 +322,7 @@ func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	var cmd tea.Cmd
-	m.table, cmd = m.table.Update(msg)
-	return m, cmd
+	return m, nil
 }
 
 func (m Model) updateCostsTab(msg tea.Msg) (tea.Model, tea.Cmd) {

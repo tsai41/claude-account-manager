@@ -67,20 +67,20 @@ func (m Model) View() string {
 
 	switch m.mode {
 	case modeConfirmDelete:
-		b.WriteString(m.table.View())
+		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(errStyle.Render(fmt.Sprintf("Delete profile %q? (y/N) ", m.delFor)))
 	case modeConfirmSwitch:
-		b.WriteString(m.table.View())
+		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(statusStyle.Render(fmt.Sprintf("Switch to profile %q? (Y/n) ", m.confirmSwitch)))
 	case modeEditNote:
-		b.WriteString(m.table.View())
+		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(fmt.Sprintf("Edit note for %s (Enter to save, Esc to cancel):\n", m.noteFor))
 		b.WriteString(m.noteIn.View())
 	case modeEditUsage:
-		b.WriteString(m.table.View())
+		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(fmt.Sprintf("Edit usage for %s (Enter to save, Esc to cancel):\n", m.usageFor))
 		b.WriteString(m.usageIn.View())
@@ -95,7 +95,7 @@ func (m Model) View() string {
 		var body string
 		switch m.tab {
 		case tabProfiles:
-			body = m.table.View()
+			body = m.viewProfiles()
 		case tabConfig:
 			body = m.viewConfig()
 		case tabCosts, tabActivity, tabHistory:
@@ -143,6 +143,40 @@ func (m Model) View() string {
 	if m.errMsg != "" {
 		b.WriteString("\n")
 		b.WriteString(errStyle.Render("error: " + m.errMsg))
+	}
+	return b.String()
+}
+
+func (m Model) viewProfiles() string {
+	var b strings.Builder
+
+	hdrStyle := lipgloss.NewStyle().Bold(true).Foreground(clrBright)
+	b.WriteString(fmt.Sprintf("   %-14s  %-28s  %-18s  %s\n",
+		hdrStyle.Render("Name"),
+		hdrStyle.Render("Email"),
+		hdrStyle.Render("Session"),
+		hdrStyle.Render("Weekly")))
+	b.WriteString(dimStyle.Render(strings.Repeat("─", 86)) + "\n")
+
+	cursorStyle := lipgloss.NewStyle().Width(2).Bold(true).Foreground(clrCursor)
+	markStyle := lipgloss.NewStyle().Width(2).Foreground(clrStatus)
+	nameBase := lipgloss.NewStyle().Width(15)
+	emailStyle := lipgloss.NewStyle().Width(30).Foreground(clrDim)
+
+	for i, row := range m.profileRows {
+		selected := i == m.profileCursor
+		glyph := " "
+		nameStyle := nameBase
+		if selected {
+			glyph = "▸"
+			nameStyle = nameBase.Foreground(clrCursor).Bold(true)
+		}
+		line := cursorStyle.Render(glyph) +
+			markStyle.Render(row[0]) +
+			nameStyle.Render(row[1]) + " " +
+			emailStyle.Render(row[2]) + " " +
+			row[3] + "  " + row[4]
+		b.WriteString(line + "\n")
 	}
 	return b.String()
 }

@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-
 	"github.com/tsai41/claude-account-manager/internal/config"
 	"github.com/tsai41/claude-account-manager/internal/format"
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
@@ -69,7 +66,8 @@ const (
 
 type Model struct {
 	tab           tabID
-	table         table.Model
+	profileCursor int
+	profileRows   [][]string
 	mode          viewMode
 	status        string
 	errMsg        string
@@ -158,51 +156,32 @@ func (m *Model) reload() error {
 		m.usageCache = make(map[string]usage.Record)
 	}
 
-	mode := m.settings.EffectiveUsageDisplay()
-	resetMode := m.settings.ResetDisplay
-	cols := []table.Column{
-		{Title: "", Width: 2},
-		{Title: "Name", Width: 14},
-		{Title: "Email", Width: 28},
-		{Title: "Session", Width: 18},
-		{Title: "Weekly", Width: 18},
+	m.profileRows = buildProfileRows(profs, st.CurrentProfile, m.settings, m.usageCache)
+	if m.profileCursor >= len(m.profileRows) {
+		m.profileCursor = max(0, len(m.profileRows)-1)
 	}
-	rows := make([]table.Row, 0, len(profs))
+	return nil
+}
+
+func buildProfileRows(profs []profile.Profile, current string, s config.Settings, cache map[string]usage.Record) [][]string {
+	mode := s.EffectiveUsageDisplay()
+	resetMode := s.ResetDisplay
+	rows := make([][]string, 0, len(profs))
 	for _, p := range profs {
 		mark := " "
-		if p.Name == st.CurrentProfile {
+		if p.Name == current {
 			mark = "*"
 		}
-		u, _ := usage.Load(p.Name)
-		m.usageCache[p.Name] = u
+		u := cache[p.Name]
 		session := renderUsageCell(u.Session, u.SessionResetsAt, mode, resetMode, isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour))
 		weekly := renderUsageCell(u.Weekly, u.WeeklyResetsAt, mode, resetMode, isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour))
 		email := format.MaskEmail(p.Email)
 		if email == "" {
 			email = "--"
 		}
-		rows = append(rows, table.Row{mark, p.Name, email, session, weekly})
+		rows = append(rows, []string{mark, p.Name, email, session, weekly})
 	}
-
-	t := table.New(
-		table.WithColumns(cols),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(tableHeightFor(len(rows))),
-	)
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(clrBorder).
-		BorderBottom(true).
-		Bold(true)
-	s.Selected = s.Selected.
-		Foreground(clrSelFg).
-		Background(clrSelBg).
-		Bold(true)
-	t.SetStyles(s)
-	m.table = t
-	return nil
+	return rows
 }
 
 func (m *Model) loadCostsAsync() tea.Cmd {
@@ -261,11 +240,10 @@ func (m *Model) refreshBodyVP() {
 }
 
 func (m Model) currentRowName() string {
-	row := m.table.SelectedRow()
-	if len(row) < 2 {
+	if m.profileCursor < 0 || m.profileCursor >= len(m.profileRows) {
 		return ""
 	}
-	return row[1]
+	return m.profileRows[m.profileCursor][1]
 }
 
 func (m Model) Init() tea.Cmd {
@@ -333,24 +311,7 @@ func (m *Model) rebuildRows() {
 	if m.usageCache == nil {
 		return
 	}
-	mode := m.settings.EffectiveUsageDisplay()
-	resetMode := m.settings.ResetDisplay
-	rows := make([]table.Row, 0, len(m.profiles))
-	for _, p := range m.profiles {
-		mark := " "
-		if p.Name == m.current {
-			mark = "*"
-		}
-		u := m.usageCache[p.Name]
-		session := renderUsageCell(u.Session, u.SessionResetsAt, mode, resetMode, isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour))
-		weekly := renderUsageCell(u.Weekly, u.WeeklyResetsAt, mode, resetMode, isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour))
-		email := format.MaskEmail(p.Email)
-		if email == "" {
-			email = "--"
-		}
-		rows = append(rows, table.Row{mark, p.Name, email, session, weekly})
-	}
-	m.table.SetRows(rows)
+	m.profileRows = buildProfileRows(m.profiles, m.current, m.settings, m.usageCache)
 }
 
 func renderUsageCell(f usage.Field, resetsAt time.Time, mode, resetMode string, stale bool) string {
@@ -390,16 +351,4 @@ func isStale(reset, updated time.Time, window time.Duration) bool {
 	return now.After(updated.Add(window))
 }
 
-// tableHeightFor returns rows+header capped at 4..14 so the Profiles table
-// matches its content instead of stretching down with empty rows.
-func tableHeightFor(rows int) int {
-	h := rows + 1
-	if h < 4 {
-		return 4
-	}
-	if h > 14 {
-		return 14
-	}
-	return h
-}
 
