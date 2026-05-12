@@ -10,16 +10,17 @@ import (
 func (m Model) tabSubtitle() string {
 	switch m.tab {
 	case tabProfiles:
-		n := len(m.table.Rows())
 		cur := m.current
 		if cur == "" {
 			cur = "none"
 		}
-		sub := subtitleStyle.Render("Profiles") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d accounts  ·  current: %s", n, cur))
+		fetchInfo := ""
 		if m.fetchingOAuth {
-			sub += mutedSubStyle.Render("  · fetching...")
+			fetchInfo = "  ·  fetching..."
+		} else if !m.lastFetched.IsZero() {
+			fetchInfo = "  ·  fetched " + relTime(m.lastFetched)
 		}
-		return sub
+		return subtitleStyle.Render("Profiles") + mutedSubStyle.Render(fmt.Sprintf("  ·  current: %s%s", cur, fetchInfo))
 	case tabCosts:
 		return subtitleStyle.Render("Costs") + mutedSubStyle.Render("  ·  machine-wide  ·  last 30d  ·  API-equivalent at list price")
 	case tabActivity:

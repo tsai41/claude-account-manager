@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -89,6 +90,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case oauthBatchDoneMsg:
 		m.fetchingOAuth = false
+		m.lastFetched = time.Now()
 		ok, fail := 0, 0
 		var lastErr string
 		for _, r := range msg.results {

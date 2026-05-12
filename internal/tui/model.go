@@ -92,6 +92,7 @@ type Model struct {
 	history       []logger.Entry
 	historyErr    error
 	fetchingOAuth bool
+	lastFetched   time.Time
 	width, height int
 	bodyVP        viewport.Model
 	settings      config.Settings
