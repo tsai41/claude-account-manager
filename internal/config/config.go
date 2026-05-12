@@ -21,15 +21,15 @@ type Settings struct {
 const (
 	DisplayLeft     = "left"
 	DisplayUsed     = "used"
-	ResetCountdown  = "countdown"
-	ResetAbsolute   = "absolute"
+	ResetRelative = "relative"
+	ResetAbsolute = "absolute"
 )
 
 // Defaults returns the built-in settings used when no config file exists.
 func Defaults() Settings {
 	return Settings{
 		UsageDisplay:        DisplayLeft,
-		ResetDisplay:        ResetCountdown,
+		ResetDisplay:        ResetRelative,
 		RefetchSeconds:      300,
 		FetchSpacingSeconds: 3,
 	}
@@ -72,7 +72,7 @@ func (s *Settings) normalize() {
 	case ResetAbsolute:
 		s.ResetDisplay = ResetAbsolute
 	default:
-		s.ResetDisplay = ResetCountdown
+		s.ResetDisplay = ResetRelative
 	}
 	if s.RefetchSeconds < 60 {
 		s.RefetchSeconds = 60

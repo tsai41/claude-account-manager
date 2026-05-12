@@ -18,8 +18,8 @@ func (m Model) viewConfig() string {
 	rows := []struct {
 		key, value, hint string
 	}{
-		{"Usage display", m.settings.UsageDisplay, "left ⇄ used"},
-		{"Reset time", m.settings.ResetDisplay, "countdown ⇄ absolute"},
+		{"Usage display", m.settings.UsageDisplay, otherOpt(m.settings.UsageDisplay, "left", "used")},
+		{"Reset time", m.settings.ResetDisplay, otherOpt(m.settings.ResetDisplay, "relative", "absolute")},
 		{"Refetch interval", fmt.Sprintf("%ds", m.settings.RefetchSeconds), "60 / 120 / 300 / 600 / 1200 / 1800 / 3600"},
 		{"Fetch spacing", fmt.Sprintf("%ds", m.settings.FetchSpacingSeconds), "1 / 2 / 3 / 5 / 10 / 20"},
 	}
@@ -120,7 +120,7 @@ func cycleConfigValue(s config.Settings, field, dir int) config.Settings {
 		}
 	case 1:
 		if s.ResetDisplay == config.ResetAbsolute {
-			s.ResetDisplay = config.ResetCountdown
+			s.ResetDisplay = config.ResetRelative
 		} else {
 			s.ResetDisplay = config.ResetAbsolute
 		}
@@ -146,4 +146,11 @@ func cycleInt(cur int, opts []int, dir int) int {
 		idx = (idx + len(opts) - 1) % len(opts)
 	}
 	return opts[idx]
+}
+
+func otherOpt(cur, a, b string) string {
+	if cur == a {
+		return "→ " + b
+	}
+	return "→ " + a
 }
