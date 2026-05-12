@@ -20,6 +20,16 @@ var (
 	familySonnet    = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
 	familyHaiku     = lipgloss.NewStyle().Foreground(lipgloss.Color("84"))
 	familyOther     = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+
+	cfgPanelStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(1, 2)
+	cfgKeyCol  = lipgloss.NewStyle().Width(22).Foreground(lipgloss.Color("250"))
+	cfgValCol  = lipgloss.NewStyle().Width(14).Bold(true).Foreground(lipgloss.Color("231"))
+	cfgHintCol = lipgloss.NewStyle().Width(42).Foreground(lipgloss.Color("244")).Italic(true)
+	cfgRowSel  = lipgloss.NewStyle().Background(lipgloss.Color("57")).Foreground(lipgloss.Color("231"))
+	cfgCursor  = lipgloss.NewStyle().Width(2).Bold(true).Foreground(lipgloss.Color("212"))
 )
 
 func familyColor(name string) lipgloss.Style {

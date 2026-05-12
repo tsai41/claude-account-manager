@@ -253,8 +253,6 @@ func (m *Model) refreshBodyVP() {
 		content = m.viewActivity()
 	case tabHistory:
 		content = m.viewHistory()
-	case tabConfig:
-		content = m.viewConfig()
 	default:
 		return
 	}

@@ -57,7 +57,11 @@ func (m Model) View() string {
 			b.WriteString(m.table.View())
 			b.WriteString("\n\n")
 			b.WriteString(helpStyle.Render("? help  Tab/1-5 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r reload  R refetch  q quit"))
-		case tabCosts, tabActivity, tabHistory, tabConfig:
+		case tabConfig:
+			b.WriteString(m.viewConfig())
+			b.WriteString("\n\n")
+			b.WriteString(helpStyle.Render("Tab cycle tabs  j/k move  Enter cycle  h/l prev/next  s save  r reset  q quit"))
+		case tabCosts, tabActivity, tabHistory:
 			b.WriteString(m.bodyVP.View())
 			b.WriteString("\n")
 			scroll := ""
@@ -74,11 +78,7 @@ func (m Model) View() string {
 				}
 				scroll = fmt.Sprintf("  [%s %d%%]", marker, pct)
 			}
-			footer := "Tab cycle tabs  ↑/↓ scroll  r refresh  q quit"
-			if m.tab == tabConfig {
-				footer = "Tab cycle tabs  j/k move  Enter cycle  s save  r reset  q quit"
-			}
-			b.WriteString(helpStyle.Render(footer + scroll))
+			b.WriteString(helpStyle.Render("Tab cycle tabs  ↑/↓ scroll  r refresh  q quit" + scroll))
 		}
 	}
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tsai41/claude-account-manager/internal/config"
 )
@@ -14,41 +15,61 @@ import (
 const configFieldCount = 3
 
 func (m Model) viewConfig() string {
-	var b strings.Builder
-	b.WriteString(titleStyle.Render("Settings"))
-	b.WriteString("\n\n")
-
 	rows := []struct {
 		key, value, hint string
 	}{
 		{"Usage display", m.settings.UsageDisplay, "left ⇄ used"},
-		{"Refetch interval", fmt.Sprintf("%ds", m.settings.RefetchSeconds), "60 → 120 → 300 → 600 → 1200 → 1800 → 3600"},
-		{"Fetch spacing", fmt.Sprintf("%ds", m.settings.FetchSpacingSeconds), "1 → 2 → 3 → 5 → 10 → 20"},
+		{"Refetch interval", fmt.Sprintf("%ds", m.settings.RefetchSeconds), "60 / 120 / 300 / 600 / 1200 / 1800 / 3600"},
+		{"Fetch spacing", fmt.Sprintf("%ds", m.settings.FetchSpacingSeconds), "1 / 2 / 3 / 5 / 10 / 20"},
 	}
 
+	rendered := make([]string, 0, len(rows))
 	for i, r := range rows {
-		cursor := "  "
-		if i == m.configCursor {
-			cursor = "> "
-		}
-		key := padRight(r.key, 18)
-		value := padRight(r.value, 8)
-		b.WriteString(cursor)
-		b.WriteString(cardLabel.Render(key))
-		b.WriteString("  ")
-		b.WriteString(cardValue.Render(value))
-		b.WriteString("   ")
-		b.WriteString(dimStyle.Render(r.hint))
-		b.WriteString("\n")
+		selected := i == m.configCursor
+		rendered = append(rendered, renderConfigRow(r.key, r.value, r.hint, selected))
+	}
+	body := lipgloss.JoinVertical(lipgloss.Left, rendered...)
+
+	var footer strings.Builder
+	footer.WriteString("\n")
+	footer.WriteString(dimStyle.Render("Config file: " + os.Getenv("HOME") + "/.ccm/config.json"))
+	if envOverride := strings.TrimSpace(os.Getenv("CCM_USAGE_DISPLAY")); envOverride != "" {
+		footer.WriteString("\n")
+		footer.WriteString(errStyle.Render("CCM_USAGE_DISPLAY=" + envOverride + " is overriding Usage display."))
 	}
 
-	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("Config file: " + os.Getenv("HOME") + "/.ccm/config.json"))
-	if envOverride := strings.TrimSpace(os.Getenv("CCM_USAGE_DISPLAY")); envOverride != "" {
-		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("CCM_USAGE_DISPLAY=" + envOverride + " is overriding Usage display."))
+	panel := cfgPanelStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render("Settings"),
+		"",
+		body,
+		footer.String(),
+	))
+	return panel
+}
+
+func renderConfigRow(key, value, hint string, selected bool) string {
+	keyCol := cfgKeyCol
+	valCol := cfgValCol
+	hintCol := cfgHintCol
+	cursorCol := cfgCursor
+	cursorGlyph := " "
+	if selected {
+		keyCol = keyCol.Inherit(cfgRowSel)
+		valCol = valCol.Inherit(cfgRowSel)
+		hintCol = hintCol.Inherit(cfgRowSel)
+		cursorCol = cursorCol.Inherit(cfgRowSel)
+		cursorGlyph = "▸"
 	}
-	return b.String()
+	inner := lipgloss.JoinHorizontal(lipgloss.Top,
+		cursorCol.Render(cursorGlyph),
+		keyCol.Render(key),
+		valCol.Render(value),
+		hintCol.Render(hint),
+	)
+	if selected {
+		return cfgRowSel.Render(inner)
+	}
+	return inner
 }
 
 func (m Model) updateConfigTab(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -111,13 +132,6 @@ func cycleConfigValue(s config.Settings, field, dir int) config.Settings {
 		s.FetchSpacingSeconds = cycleInt(s.FetchSpacingSeconds, []int{1, 2, 3, 5, 10, 20}, dir)
 	}
 	return s
-}
-
-func padRight(s string, w int) string {
-	if len(s) >= w {
-		return s
-	}
-	return s + strings.Repeat(" ", w-len(s))
 }
 
 func cycleInt(cur int, opts []int, dir int) int {
