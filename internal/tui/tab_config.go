@@ -20,8 +20,8 @@ func (m Model) viewConfig() string {
 	}{
 		{"Usage display", m.settings.UsageDisplay, otherOpt(m.settings.UsageDisplay, "left", "used")},
 		{"Reset time", m.settings.ResetDisplay, otherOpt(m.settings.ResetDisplay, "relative", "absolute")},
-		{"OAuth fetch interval", fmt.Sprintf("%ds", m.settings.RefetchSeconds), "60 / 120 / 300 / 600 / 1200 / 1800 / 3600"},
-		{"Per-profile delay", fmt.Sprintf("%ds", m.settings.FetchSpacingSeconds), "1 / 2 / 3 / 5 / 10 / 20"},
+		{"OAuth fetch interval", fmtDur(m.settings.RefetchSeconds), "1m / 2m / 5m / 10m / 20m / 30m / 1h"},
+		{"Per-profile delay", fmtDur(m.settings.FetchSpacingSeconds), "1s / 2s / 3s / 5s / 10s / 20s"},
 	}
 
 	rendered := make([]string, 0, len(rows))
@@ -146,6 +146,19 @@ func cycleInt(cur int, opts []int, dir int) int {
 		idx = (idx + len(opts) - 1) % len(opts)
 	}
 	return opts[idx]
+}
+
+func fmtDur(secs int) string {
+	if secs == 0 {
+		return "0s"
+	}
+	if secs%3600 == 0 {
+		return fmt.Sprintf("%dh", secs/3600)
+	}
+	if secs%60 == 0 {
+		return fmt.Sprintf("%dm", secs/60)
+	}
+	return fmt.Sprintf("%ds", secs)
 }
 
 func otherOpt(cur, a, b string) string {
