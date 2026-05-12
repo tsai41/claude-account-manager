@@ -56,7 +56,7 @@ func (m Model) View() string {
 		case tabProfiles:
 			b.WriteString(m.table.View())
 			b.WriteString("\n\n")
-			b.WriteString(helpStyle.Render("? help  Tab/1-4 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r refresh  q quit"))
+			b.WriteString(helpStyle.Render("? help  Tab/1-4 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r reload  R refetch  q quit"))
 		case tabCosts, tabActivity, tabHistory:
 			b.WriteString(m.bodyVP.View())
 			b.WriteString("\n")

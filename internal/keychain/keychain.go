@@ -111,9 +111,10 @@ func DeleteBackup(profile string) error {
 	return Delete(BackupService, profile)
 }
 
-// Fingerprint returns the last 8 chars of accessToken from a token JSON, or "" if unavailable.
-// This is a cheap heuristic mirroring CCSwitcher's diagnostic approach; we do NOT log the full token.
-func Fingerprint(tokenJSON string) string {
+// ExtractAccessToken pulls the OAuth accessToken from a token JSON blob.
+// Accepts both wrapped ({"claudeAiOauth":{"accessToken":...}}) and flat
+// ({"accessToken":...}) shapes. Returns "" when not found.
+func ExtractAccessToken(tokenJSON string) string {
 	const key = "\"accessToken\""
 	i := strings.Index(tokenJSON, key)
 	if i < 0 {
@@ -126,9 +127,18 @@ func Fingerprint(tokenJSON string) string {
 	}
 	rest = rest[q1+1:]
 	q2 := strings.Index(rest, "\"")
-	if q2 < 8 {
+	if q2 <= 0 {
 		return ""
 	}
-	tok := rest[:q2]
+	return rest[:q2]
+}
+
+// Fingerprint returns the last 8 chars of accessToken from a token JSON, or "" if unavailable.
+// This is a cheap heuristic mirroring CCSwitcher's diagnostic approach; we do NOT log the full token.
+func Fingerprint(tokenJSON string) string {
+	tok := ExtractAccessToken(tokenJSON)
+	if len(tok) < 8 {
+		return ""
+	}
 	return tok[len(tok)-8:]
 }

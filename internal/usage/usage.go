@@ -16,16 +16,18 @@ type Field struct {
 }
 
 type Record struct {
-	Provider      string    `json:"provider"`
-	Session       Field     `json:"session"`
-	Weekly        Field     `json:"weekly"`
-	Manual        string    `json:"manual,omitempty"`
-	Note          string    `json:"note,omitempty"`
-	ActivityToday int       `json:"activity_today,omitempty"`
-	Activity7d    int       `json:"activity_7d,omitempty"`
-	Activity5h    int       `json:"activity_5h,omitempty"`
-	LastActive    time.Time `json:"last_active,omitempty"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	Provider        string    `json:"provider"`
+	Session         Field     `json:"session"`
+	Weekly          Field     `json:"weekly"`
+	Manual          string    `json:"manual,omitempty"`
+	Note            string    `json:"note,omitempty"`
+	ActivityToday   int       `json:"activity_today,omitempty"`
+	Activity7d      int       `json:"activity_7d,omitempty"`
+	Activity5h      int       `json:"activity_5h,omitempty"`
+	LastActive      time.Time `json:"last_active,omitempty"`
+	SessionResetsAt time.Time `json:"session_resets_at,omitempty"`
+	WeeklyResetsAt  time.Time `json:"weekly_resets_at,omitempty"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 func Empty() Record {

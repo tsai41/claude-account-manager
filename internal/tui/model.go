@@ -1,6 +1,11 @@
 package tui
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -9,10 +14,28 @@ import (
 
 	"github.com/tsai41/claude-account-manager/internal/format"
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
+	"github.com/tsai41/claude-account-manager/internal/keychain"
 	"github.com/tsai41/claude-account-manager/internal/logger"
 	"github.com/tsai41/claude-account-manager/internal/profile"
 	"github.com/tsai41/claude-account-manager/internal/usage"
 )
+
+// oauthRefetchInterval drives background OAuth usage refresh per profile.
+const oauthRefetchInterval = 5 * time.Minute
+
+type oauthRefetchMsg time.Time
+type oauthUsageMsg struct {
+	profile string
+	u       usage.OAuthUsage
+	err     error
+}
+type oauthBatchDoneMsg struct {
+	results []oauthUsageMsg
+}
+
+func oauthTickCmd() tea.Cmd {
+	return tea.Tick(oauthRefetchInterval, func(t time.Time) tea.Msg { return oauthRefetchMsg(t) })
+}
 
 type tabID int
 
@@ -121,8 +144,8 @@ func (m *Model) reload() error {
 		{Title: "Email", Width: 28},
 		{Title: "Session Left", Width: 13},
 		{Title: "Weekly Left", Width: 12},
-		{Title: "Last Used", Width: 16},
-		{Title: "Note", Width: 28},
+		{Title: "Reset (S/W)", Width: 18},
+		{Title: "Updated", Width: 10},
 	}
 	rows := make([]table.Row, 0, len(profs))
 	for _, p := range profs {
@@ -133,15 +156,22 @@ func (m *Model) reload() error {
 		u, _ := usage.Load(p.Name)
 		session := usage.Remaining(u.Session.Display)
 		weekly := usage.Remaining(u.Weekly.Display)
-		last := "--"
-		if !p.LastUsedAt.IsZero() {
-			last = p.LastUsedAt.Format("2006-01-02 15:04")
+		if isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour) {
+			session = "--"
+		}
+		if isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour) {
+			weekly = "--"
 		}
 		email := format.MaskEmail(p.Email)
 		if email == "" {
 			email = "--"
 		}
-		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, last, u.Note})
+		reset := usage.FormatResetPair(u.SessionResetsAt, u.WeeklyResetsAt)
+		updated := "--"
+		if !u.UpdatedAt.IsZero() {
+			updated = relTime(u.UpdatedAt)
+		}
+		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, reset, updated})
 	}
 
 	t := table.New(
@@ -228,4 +258,109 @@ func (m Model) currentRowName() string {
 	return row[1]
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd {
+	return tea.Batch(oauthTickCmd(), m.refetchAllOAuthCmd())
+}
+
+// fetchSpacing is the gap between sequential OAuth usage fetches to avoid 429.
+const fetchSpacing = 3 * time.Second
+
+// refetchAllOAuthCmd fetches OAuth usage for every profile sequentially in one
+// command, spacing requests by fetchSpacing to avoid hitting the rate limiter.
+func (m Model) refetchAllOAuthCmd() tea.Cmd {
+	profs, err := profile.List()
+	if err != nil {
+		return nil
+	}
+	current := m.current
+	names := make([]string, 0, len(profs))
+	for _, p := range profs {
+		names = append(names, p.Name)
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return func() tea.Msg {
+		results := make([]oauthUsageMsg, 0, len(names))
+		for i, name := range names {
+			if i > 0 {
+				time.Sleep(fetchSpacing)
+			}
+			results = append(results, fetchOAuthOnce(name, current))
+		}
+		return oauthBatchDoneMsg{results: results}
+	}
+}
+
+// fetchOAuthOnce performs a single profile fetch synchronously.
+func fetchOAuthOnce(profileName, current string) oauthUsageMsg {
+	var tokenJSON string
+	var err error
+	if profileName == current {
+		tokenJSON, err = keychain.ReadLive()
+		if err != nil {
+			tokenJSON, err = keychain.ReadBackup(profileName)
+		}
+	} else {
+		tokenJSON, err = keychain.ReadBackup(profileName)
+	}
+	if err != nil {
+		return oauthUsageMsg{profile: profileName, err: fmt.Errorf("keychain: %w", err)}
+	}
+	if tokenJSON == "" {
+		return oauthUsageMsg{profile: profileName, err: errors.New("keychain: empty token")}
+	}
+	access := keychain.ExtractAccessToken(tokenJSON)
+	if access == "" {
+		return oauthUsageMsg{profile: profileName, err: errors.New("no accessToken in token JSON")}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	u, err := usage.FetchOAuthUsage(ctx, access)
+	return oauthUsageMsg{profile: profileName, u: u, err: err}
+}
+
+// isStale reports whether a usage value should be considered out-of-date.
+// Prefers an explicit reset deadline; falls back to UpdatedAt + window when
+// reset is unknown (e.g. manual entries without OAuth data).
+func isStale(reset, updated time.Time, window time.Duration) bool {
+	now := time.Now()
+	if !reset.IsZero() {
+		return now.After(reset)
+	}
+	if updated.IsZero() {
+		return false
+	}
+	return now.After(updated.Add(window))
+}
+
+func relTime(t time.Time) string {
+	d := time.Since(t)
+	if d < time.Minute {
+		return "just now"
+	}
+	if d < time.Hour {
+		return fmtInt(int(d/time.Minute)) + "m ago"
+	}
+	if d < 24*time.Hour {
+		return fmtInt(int(d/time.Hour)) + "h ago"
+	}
+	return fmtInt(int(d/(24*time.Hour))) + "d ago"
+}
+
+func fmtInt(n int) string {
+	if n < 0 {
+		n = 0
+	}
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}

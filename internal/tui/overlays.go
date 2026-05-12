@@ -25,7 +25,8 @@ func (m Model) viewHelp() string {
 		{"e", "edit usage value (parses session/weekly %)"},
 		{"u", "edit note"},
 		{"d", "delete profile (y/N confirm)"},
-		{"r", "refresh"},
+		{"r", "reload table from disk"},
+		{"R", "refetch OAuth usage now (auto every 5min)"},
 		{"", ""},
 		{"Costs / Activity / History tabs", ""},
 		{"↑/↓", "scroll viewport"},
@@ -89,6 +90,18 @@ func (m Model) viewDetail() string {
 		row("Keychain backup", errStyle.Render(bkErr.Error()))
 	}
 	row("Usage left", "session "+usage.Remaining(u.Session.Display)+"  weekly "+usage.Remaining(u.Weekly.Display))
+	if !u.SessionResetsAt.IsZero() || !u.WeeklyResetsAt.IsZero() {
+		row("Resets in", usage.FormatResetPair(u.SessionResetsAt, u.WeeklyResetsAt))
+	}
+	if !u.SessionResetsAt.IsZero() {
+		row("Session reset", u.SessionResetsAt.Local().Format("2006-01-02 15:04:05"))
+	}
+	if !u.WeeklyResetsAt.IsZero() {
+		row("Weekly reset", u.WeeklyResetsAt.Local().Format("2006-01-02 15:04:05"))
+	}
+	if !u.UpdatedAt.IsZero() {
+		row("Usage fetched", u.UpdatedAt.Local().Format("2006-01-02 15:04:05")+"  ("+relTime(u.UpdatedAt)+")")
+	}
 	if u.Manual != "" {
 		row("Usage raw", u.Manual)
 	}

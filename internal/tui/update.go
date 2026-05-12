@@ -42,6 +42,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statsLoading = false
 		m.refreshBodyVP()
 		return m, nil
+	case oauthRefetchMsg:
+		return m, tea.Batch(m.refetchAllOAuthCmd(), oauthTickCmd())
+	case oauthUsageMsg:
+		return m, nil
+	case oauthBatchDoneMsg:
+		ok, fail := 0, 0
+		var lastErr string
+		for _, r := range msg.results {
+			if r.err != nil {
+				fail++
+				lastErr = fmt.Sprintf("%s: %v", r.profile, r.err)
+				continue
+			}
+			if err := usage.ApplyOAuth(r.profile, r.u); err != nil {
+				fail++
+				lastErr = fmt.Sprintf("%s save: %v", r.profile, err)
+				continue
+			}
+			ok++
+		}
+		_ = m.reload()
+		if fail == 0 {
+			m.status = fmt.Sprintf("OAuth usage updated: %d profile(s)", ok)
+			m.errMsg = ""
+		} else if ok == 0 {
+			m.errMsg = "oauth fetch failed: " + lastErr
+		} else {
+			m.status = fmt.Sprintf("OAuth updated %d, %d failed", ok, fail)
+			m.errMsg = lastErr
+		}
+		return m, nil
 	}
 
 	if k, ok := msg.(tea.KeyMsg); ok && m.mode != modeEditNote && m.mode != modeEditUsage {
@@ -163,6 +194,10 @@ func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.errMsg = ""
 			}
 			return m, nil
+		case "R":
+			m.status = "Refetching OAuth usage..."
+			m.errMsg = ""
+			return m, m.refetchAllOAuthCmd()
 		case "u":
 			name := m.currentRowName()
 			if name == "" {
