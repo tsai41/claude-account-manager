@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/tsai41/claude-account-manager/internal/config"
 	"github.com/tsai41/claude-account-manager/internal/profile"
 	"github.com/tsai41/claude-account-manager/internal/usage"
 )
@@ -77,9 +78,9 @@ func runList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	mode := usage.DisplayMode()
+	mode := config.Load().EffectiveUsageDisplay()
 	sessionHeader, weeklyHeader := "SESSION LEFT", "WEEKLY LEFT"
-	if mode == usage.DisplayModeUsed {
+	if mode == config.DisplayUsed {
 		sessionHeader, weeklyHeader = "SESSION USED", "WEEKLY USED"
 	}
 	fmt.Fprintf(w, "CURRENT\tNAME\tEMAIL\tAUTH\t%s\t%s\tLAST USED\n", sessionHeader, weeklyHeader)

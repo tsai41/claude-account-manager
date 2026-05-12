@@ -43,7 +43,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshBodyVP()
 		return m, nil
 	case oauthRefetchMsg:
-		return m, tea.Batch(m.refetchAllOAuthCmd(), oauthTickCmd())
+		return m, tea.Batch(m.refetchAllOAuthCmd(), oauthTickCmd(m.settings.RefetchInterval()))
 	case oauthUsageMsg:
 		return m, nil
 	case oauthBatchDoneMsg:
@@ -124,6 +124,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refreshBodyVP()
 				return m, nil
 			}
+		case "5":
+			if m.mode == modeTable {
+				m.tab = tabConfig
+				m.refreshBodyVP()
+				return m, nil
+			}
 		}
 	}
 
@@ -157,6 +163,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateActivityTab(msg)
 	case tabHistory:
 		return m.updateHistoryTab(msg)
+	case tabConfig:
+		return m.updateConfigTab(msg)
 	}
 	return m, nil
 }

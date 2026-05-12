@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/tsai41/claude-account-manager/internal/config"
 	"github.com/tsai41/claude-account-manager/internal/format"
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
 	"github.com/tsai41/claude-account-manager/internal/keychain"
@@ -19,9 +20,6 @@ import (
 	"github.com/tsai41/claude-account-manager/internal/profile"
 	"github.com/tsai41/claude-account-manager/internal/usage"
 )
-
-// oauthRefetchInterval drives background OAuth usage refresh per profile.
-const oauthRefetchInterval = 5 * time.Minute
 
 type oauthRefetchMsg time.Time
 type oauthUsageMsg struct {
@@ -33,8 +31,11 @@ type oauthBatchDoneMsg struct {
 	results []oauthUsageMsg
 }
 
-func oauthTickCmd() tea.Cmd {
-	return tea.Tick(oauthRefetchInterval, func(t time.Time) tea.Msg { return oauthRefetchMsg(t) })
+func oauthTickCmd(d time.Duration) tea.Cmd {
+	if d <= 0 {
+		d = 5 * time.Minute
+	}
+	return tea.Tick(d, func(t time.Time) tea.Msg { return oauthRefetchMsg(t) })
 }
 
 type tabID int
@@ -44,9 +45,10 @@ const (
 	tabCosts
 	tabActivity
 	tabHistory
+	tabConfig
 )
 
-var tabNames = []string{"Profiles", "Costs", "Activity", "History"}
+var tabNames = []string{"Profiles", "Costs", "Activity", "History", "Config"}
 
 type viewMode int
 
@@ -84,6 +86,8 @@ type Model struct {
 	historyErr    error
 	width, height int
 	bodyVP        viewport.Model
+	settings      config.Settings
+	configCursor  int
 }
 
 type costsLoadedMsg struct {
@@ -110,7 +114,7 @@ func loadStatsCmd() tea.Cmd {
 }
 
 func New() (Model, error) {
-	m := Model{}
+	m := Model{settings: config.Load()}
 	if err := m.reload(); err != nil {
 		return m, err
 	}
@@ -138,9 +142,9 @@ func (m *Model) reload() error {
 	st, _ := profile.LoadState()
 	m.current = st.CurrentProfile
 
-	mode := usage.DisplayMode()
+	mode := m.settings.EffectiveUsageDisplay()
 	sessionTitle, weeklyTitle := "Session Left", "Weekly Left"
-	if mode == usage.DisplayModeUsed {
+	if mode == config.DisplayUsed {
 		sessionTitle, weeklyTitle = "Session Used", "Weekly Used"
 	}
 	cols := []table.Column{
@@ -249,6 +253,8 @@ func (m *Model) refreshBodyVP() {
 		content = m.viewActivity()
 	case tabHistory:
 		content = m.viewHistory()
+	case tabConfig:
+		content = m.viewConfig()
 	default:
 		return
 	}
@@ -264,20 +270,18 @@ func (m Model) currentRowName() string {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(oauthTickCmd(), m.refetchAllOAuthCmd())
+	return tea.Batch(oauthTickCmd(m.settings.RefetchInterval()), m.refetchAllOAuthCmd())
 }
 
-// fetchSpacing is the gap between sequential OAuth usage fetches to avoid 429.
-const fetchSpacing = 3 * time.Second
-
 // refetchAllOAuthCmd fetches OAuth usage for every profile sequentially in one
-// command, spacing requests by fetchSpacing to avoid hitting the rate limiter.
+// command, spacing requests by settings.FetchSpacing to avoid rate-limiter hits.
 func (m Model) refetchAllOAuthCmd() tea.Cmd {
 	profs, err := profile.List()
 	if err != nil {
 		return nil
 	}
 	current := m.current
+	spacing := m.settings.FetchSpacing()
 	names := make([]string, 0, len(profs))
 	for _, p := range profs {
 		names = append(names, p.Name)
@@ -289,7 +293,7 @@ func (m Model) refetchAllOAuthCmd() tea.Cmd {
 		results := make([]oauthUsageMsg, 0, len(names))
 		for i, name := range names {
 			if i > 0 {
-				time.Sleep(fetchSpacing)
+				time.Sleep(spacing)
 			}
 			results = append(results, fetchOAuthOnce(name, current))
 		}

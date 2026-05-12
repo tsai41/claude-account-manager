@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tsai41/claude-account-manager/internal/config"
 	"github.com/tsai41/claude-account-manager/internal/format"
 	"github.com/tsai41/claude-account-manager/internal/keychain"
 	"github.com/tsai41/claude-account-manager/internal/profile"
@@ -89,9 +90,9 @@ func (m Model) viewDetail() string {
 	} else {
 		row("Keychain backup", errStyle.Render(bkErr.Error()))
 	}
-	mode := usage.DisplayMode()
+	mode := m.settings.EffectiveUsageDisplay()
 	label := "Usage left"
-	if mode == usage.DisplayModeUsed {
+	if mode == config.DisplayUsed {
 		label = "Usage used"
 	}
 	row(label, "session "+usage.Render(u.Session, mode)+"  weekly "+usage.Render(u.Weekly, mode))
