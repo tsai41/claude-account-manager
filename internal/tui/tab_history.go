@@ -1,10 +1,18 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/tsai41/claude-account-manager/internal/logger"
+)
+
+var (
+	histTimeCol  = lipgloss.NewStyle().Width(20).Foreground(lipgloss.Color("244"))
+	histEventCol = lipgloss.NewStyle().Width(22)
+	histProfCol  = lipgloss.NewStyle().Width(14).Bold(true).Foreground(lipgloss.Color("231"))
+	histMsgCol   = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 )
 
 func (m Model) viewHistory() string {
@@ -32,23 +40,29 @@ func (m Model) viewHistory() string {
 	for i := len(relevant) - 1; i >= 0; i-- {
 		e := relevant[i]
 		ts := e.Time.Format("2006-01-02 15:04:05")
-		evt := e.Event
-		switch evt {
+		evt := histEventCol.Render(e.Event)
+		switch e.Event {
 		case "switch.done":
-			evt = statusStyle.Render(evt)
+			evt = histEventCol.Foreground(lipgloss.Color("36")).Render(e.Event)
 		case "switch.email_mismatch", "remove":
-			evt = errStyle.Render(evt)
+			evt = histEventCol.Foreground(lipgloss.Color("196")).Render(e.Event)
 		case "import-current":
-			evt = cardValue.Render(evt)
+			evt = histEventCol.Foreground(lipgloss.Color("231")).Bold(true).Render(e.Event)
 		default:
-			evt = subStyle.Render(evt)
+			evt = histEventCol.Foreground(lipgloss.Color("250")).Render(e.Event)
 		}
 		prof := e.Profile
 		if prof == "" {
 			prof = "-"
 		}
-		b.WriteString(fmt.Sprintf("  %s  %-26s %-16s %s\n",
-			dimStyle.Render(ts), evt, cardValue.Render(prof), dimStyle.Render(e.Message)))
+		row := lipgloss.JoinHorizontal(lipgloss.Top,
+			histTimeCol.Render(ts),
+			evt,
+			histProfCol.Render(prof),
+			histMsgCol.Render(e.Message),
+		)
+		b.WriteString(row)
+		b.WriteString("\n")
 	}
 	return b.String()
 }
