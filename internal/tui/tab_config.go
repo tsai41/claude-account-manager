@@ -12,13 +12,14 @@ import (
 )
 
 // configFieldCount must match the number of cases handled in cycleConfigValue.
-const configFieldCount = 3
+const configFieldCount = 4
 
 func (m Model) viewConfig() string {
 	rows := []struct {
 		key, value, hint string
 	}{
 		{"Usage display", m.settings.UsageDisplay, "left ⇄ used"},
+		{"Reset time", m.settings.ResetDisplay, "countdown ⇄ absolute"},
 		{"Refetch interval", fmt.Sprintf("%ds", m.settings.RefetchSeconds), "60 / 120 / 300 / 600 / 1200 / 1800 / 3600"},
 		{"Fetch spacing", fmt.Sprintf("%ds", m.settings.FetchSpacingSeconds), "1 / 2 / 3 / 5 / 10 / 20"},
 	}
@@ -118,8 +119,14 @@ func cycleConfigValue(s config.Settings, field, dir int) config.Settings {
 			s.UsageDisplay = config.DisplayUsed
 		}
 	case 1:
-		s.RefetchSeconds = cycleInt(s.RefetchSeconds, []int{60, 120, 300, 600, 1200, 1800, 3600}, dir)
+		if s.ResetDisplay == config.ResetAbsolute {
+			s.ResetDisplay = config.ResetCountdown
+		} else {
+			s.ResetDisplay = config.ResetAbsolute
+		}
 	case 2:
+		s.RefetchSeconds = cycleInt(s.RefetchSeconds, []int{60, 120, 300, 600, 1200, 1800, 3600}, dir)
+	case 3:
 		s.FetchSpacingSeconds = cycleInt(s.FetchSpacingSeconds, []int{1, 2, 3, 5, 10, 20}, dir)
 	}
 	return s

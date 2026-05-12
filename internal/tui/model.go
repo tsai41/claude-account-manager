@@ -152,16 +152,13 @@ func (m *Model) reload() error {
 	m.current = st.CurrentProfile
 
 	mode := m.settings.EffectiveUsageDisplay()
-	sessionTitle, weeklyTitle := "Session Left", "Weekly Left"
-	if mode == config.DisplayUsed {
-		sessionTitle, weeklyTitle = "Session Used", "Weekly Used"
-	}
+	resetMode := m.settings.ResetDisplay
 	cols := []table.Column{
 		{Title: "", Width: 2},
 		{Title: "Name", Width: 14},
 		{Title: "Email", Width: 28},
-		{Title: sessionTitle, Width: 16},
-		{Title: weeklyTitle, Width: 16},
+		{Title: "Session", Width: 18},
+		{Title: "Weekly", Width: 18},
 		{Title: "Updated", Width: 10},
 	}
 	rows := make([]table.Row, 0, len(profs))
@@ -171,8 +168,8 @@ func (m *Model) reload() error {
 			mark = "*"
 		}
 		u, _ := usage.Load(p.Name)
-		session := renderUsageCell(u.Session, u.SessionResetsAt, mode, isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour))
-		weekly := renderUsageCell(u.Weekly, u.WeeklyResetsAt, mode, isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour))
+		session := renderUsageCell(u.Session, u.SessionResetsAt, mode, resetMode, isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour))
+		weekly := renderUsageCell(u.Weekly, u.WeeklyResetsAt, mode, resetMode, isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour))
 		email := format.MaskEmail(p.Email)
 		if email == "" {
 			email = "--"
@@ -332,9 +329,7 @@ func fetchOAuthOnce(profileName, current string) oauthUsageMsg {
 // colourUsage applies a colour to a rendered usage string based on remaining %.
 // s is the already-rendered string (e.g. "58%" for left mode or "42%" for used mode).
 // leftMode true means s represents remaining; false means s represents consumed.
-// renderUsageCell returns "48% (3h8m)" for display in the profiles table.
-// Plain text only — no ANSI codes; bubbles/table uses runewidth.Truncate.
-func renderUsageCell(f usage.Field, resetsAt time.Time, mode string, stale bool) string {
+func renderUsageCell(f usage.Field, resetsAt time.Time, mode, resetMode string, stale bool) string {
 	if stale {
 		return "--"
 	}
@@ -342,11 +337,19 @@ func renderUsageCell(f usage.Field, resetsAt time.Time, mode string, stale bool)
 	if pct == "" || pct == "unknown" {
 		pct = "--"
 	}
-	countdown := usage.FormatReset(resetsAt)
-	if countdown == "" || resetsAt.IsZero() {
+	if resetsAt.IsZero() {
 		return pct
 	}
-	return pct + " (" + countdown + ")"
+	var resetStr string
+	if resetMode == config.ResetAbsolute {
+		resetStr = resetsAt.Local().Format("01/02 15:04")
+	} else {
+		resetStr = usage.FormatReset(resetsAt)
+	}
+	if resetStr == "" {
+		return pct
+	}
+	return pct + " (" + resetStr + ")"
 }
 
 func colourUsage(s string, leftMode bool) string {

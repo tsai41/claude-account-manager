@@ -13,19 +13,23 @@ import (
 // ~/.ccm/config.json. Fields default to safe values when absent.
 type Settings struct {
 	UsageDisplay        string `json:"usage_display"`         // "left" or "used"
+	ResetDisplay        string `json:"reset_display"`         // "countdown" or "absolute"
 	RefetchSeconds      int    `json:"refetch_seconds"`       // OAuth usage refetch interval
 	FetchSpacingSeconds int    `json:"fetch_spacing_seconds"` // gap between per-profile fetches
 }
 
 const (
-	DisplayLeft = "left"
-	DisplayUsed = "used"
+	DisplayLeft     = "left"
+	DisplayUsed     = "used"
+	ResetCountdown  = "countdown"
+	ResetAbsolute   = "absolute"
 )
 
 // Defaults returns the built-in settings used when no config file exists.
 func Defaults() Settings {
 	return Settings{
 		UsageDisplay:        DisplayLeft,
+		ResetDisplay:        ResetCountdown,
 		RefetchSeconds:      300,
 		FetchSpacingSeconds: 3,
 	}
@@ -63,6 +67,12 @@ func (s *Settings) normalize() {
 		s.UsageDisplay = DisplayUsed
 	default:
 		s.UsageDisplay = DisplayLeft
+	}
+	switch strings.ToLower(s.ResetDisplay) {
+	case ResetAbsolute:
+		s.ResetDisplay = ResetAbsolute
+	default:
+		s.ResetDisplay = ResetCountdown
 	}
 	if s.RefetchSeconds < 60 {
 		s.RefetchSeconds = 60
