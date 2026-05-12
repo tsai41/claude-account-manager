@@ -24,7 +24,13 @@ func (m Model) View() string {
 	b.WriteString(titleStyle.Render("ccm — Claude account manager"))
 	b.WriteString("\n")
 	b.WriteString(m.renderTabs())
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+	if m.width > 0 {
+		b.WriteString(dimStyle.Render(strings.Repeat("─", m.width)))
+		b.WriteString("\n")
+	} else {
+		b.WriteString("\n")
+	}
 
 	switch m.mode {
 	case modeConfirmDelete:
@@ -54,7 +60,7 @@ func (m Model) View() string {
 	default:
 		switch m.tab {
 		case tabProfiles:
-			b.WriteString(m.table.View())
+			b.WriteString(panelStyle.Render(m.table.View()))
 			b.WriteString("\n\n")
 			b.WriteString(helpStyle.Render("? help  Tab/1-5 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r reload  R refetch  q quit"))
 		case tabConfig:
