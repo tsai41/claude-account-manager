@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -21,7 +23,12 @@ import (
 	"github.com/tsai41/claude-account-manager/internal/usage"
 )
 
+type tickMsg time.Time
 type oauthRefetchMsg time.Time
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
 type oauthUsageMsg struct {
 	profile string
 	u       usage.OAuthUsage
@@ -84,6 +91,7 @@ type Model struct {
 	statsLoading  bool
 	history       []logger.Entry
 	historyErr    error
+	fetchingOAuth bool
 	width, height int
 	bodyVP        viewport.Model
 	settings      config.Settings
@@ -171,6 +179,9 @@ func (m *Model) reload() error {
 		if isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour) {
 			weekly = "--"
 		}
+		leftMode := mode != config.DisplayUsed
+		session = colourUsage(session, leftMode)
+		weekly = colourUsage(weekly, leftMode)
 		email := format.MaskEmail(p.Email)
 		if email == "" {
 			email = "--"
@@ -268,7 +279,8 @@ func (m Model) currentRowName() string {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(oauthTickCmd(m.settings.RefetchInterval()), m.refetchAllOAuthCmd())
+	m.fetchingOAuth = true
+	return tea.Batch(oauthTickCmd(m.settings.RefetchInterval()), m.refetchAllOAuthCmd(), tickCmd())
 }
 
 // refetchAllOAuthCmd fetches OAuth usage for every profile sequentially in one
@@ -325,6 +337,41 @@ func fetchOAuthOnce(profileName, current string) oauthUsageMsg {
 	defer cancel()
 	u, err := usage.FetchOAuthUsage(ctx, access)
 	return oauthUsageMsg{profile: profileName, u: u, err: err}
+}
+
+// colourUsage applies a colour to a rendered usage string based on remaining %.
+// s is the already-rendered string (e.g. "58%" for left mode or "42%" for used mode).
+// leftMode true means s represents remaining; false means s represents consumed.
+func colourUsage(s string, leftMode bool) string {
+	if s == "--" || s == "??" || s == "" || s == "unknown" {
+		return s
+	}
+	trimmed := strings.TrimSuffix(s, "%")
+	if trimmed == s {
+		return s
+	}
+	n, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil {
+		return s
+	}
+	remaining := n
+	if !leftMode {
+		remaining = 100 - n
+	}
+	var col string
+	switch {
+	case remaining <= 20:
+		col = "196"
+	case remaining <= 50:
+		col = "214"
+	default:
+		if leftMode {
+			col = "46"
+		} else {
+			col = "231"
+		}
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(col)).Render(s)
 }
 
 // isStale reports whether a usage value should be considered out-of-date.

@@ -2,18 +2,43 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
+	"github.com/tsai41/claude-account-manager/internal/keychain"
 	"github.com/tsai41/claude-account-manager/internal/switcher"
 	"github.com/tsai41/claude-account-manager/internal/usage"
 )
 
+type statusMsg string
+type errMsgT string
+
+func copyToClipboardCmd(token, name string) tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("pbcopy")
+		cmd.Stdin = strings.NewReader(token)
+		if err := cmd.Run(); err != nil {
+			return errMsgT("clipboard: " + err.Error())
+		}
+		return statusMsg("Copied token for " + name)
+	}
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tickMsg:
+		_ = m.reload()
+		return m, tickCmd()
+	case statusMsg:
+		m.status = string(msg)
+		return m, nil
+	case errMsgT:
+		m.errMsg = string(msg)
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -58,10 +83,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshBodyVP()
 		return m, nil
 	case oauthRefetchMsg:
+		m.fetchingOAuth = true
 		return m, tea.Batch(m.refetchAllOAuthCmd(), oauthTickCmd(m.settings.RefetchInterval()))
 	case oauthUsageMsg:
 		return m, nil
 	case oauthBatchDoneMsg:
+		m.fetchingOAuth = false
 		ok, fail := 0, 0
 		var lastErr string
 		for _, r := range msg.results {
@@ -218,9 +245,35 @@ func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "R":
+			m.fetchingOAuth = true
 			m.status = "Refetching OAuth usage..."
 			m.errMsg = ""
 			return m, m.refetchAllOAuthCmd()
+		case "c":
+			name := m.currentRowName()
+			if name == "" {
+				return m, nil
+			}
+			var tokenJSON string
+			var err error
+			if name == m.current {
+				tokenJSON, err = keychain.ReadLive()
+				if err != nil {
+					tokenJSON, err = keychain.ReadBackup(name)
+				}
+			} else {
+				tokenJSON, err = keychain.ReadBackup(name)
+			}
+			if err != nil {
+				m.errMsg = "keychain: " + err.Error()
+				return m, nil
+			}
+			access := keychain.ExtractAccessToken(tokenJSON)
+			if access == "" {
+				m.errMsg = "no access token found"
+				return m, nil
+			}
+			return m, copyToClipboardCmd(access, name)
 		case "u":
 			name := m.currentRowName()
 			if name == "" {

@@ -89,9 +89,10 @@ func (m Model) viewActivity() string {
 		for _, d := range shown {
 			bar := format.BarInt(d.Turns, max, 24)
 			date := strings.Replace(d.Date[5:], "-", "/", 1)
-			line := fmt.Sprintf("  %s   %5d turns  %s", date, d.Turns, bar)
+			cost := fmt.Sprintf("  $%.2f", d.Cost)
+			line := fmt.Sprintf("  %s   %5d turns  %s%s", date, d.Turns, bar, cost)
 			if d.Date == today {
-				line = todayRow.Render(fmt.Sprintf("▶ %s   %5d turns  ", date, d.Turns)) + bar
+				line = todayRow.Render(fmt.Sprintf("▶ %s   %5d turns  ", date, d.Turns)) + bar + todayRow.Render(cost)
 			}
 			b.WriteString(line)
 			b.WriteString("\n")

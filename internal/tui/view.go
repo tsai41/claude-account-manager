@@ -15,7 +15,11 @@ func (m Model) tabSubtitle() string {
 		if cur == "" {
 			cur = "none"
 		}
-		return subtitleStyle.Render("Profiles") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d accounts  ·  current: %s", n, cur))
+		sub := subtitleStyle.Render("Profiles") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d accounts  ·  current: %s", n, cur))
+		if m.fetchingOAuth {
+			sub += mutedSubStyle.Render("  · fetching...")
+		}
+		return sub
 	case tabCosts:
 		return subtitleStyle.Render("Costs") + mutedSubStyle.Render("  ·  machine-wide  ·  last 30d  ·  API-equivalent at list price")
 	case tabActivity:
@@ -42,7 +46,12 @@ func (m Model) renderTabs() string {
 
 func (m Model) View() string {
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("ccm — Claude account manager"))
+	b.WriteString(titleStyle.Render("ccm"))
+	b.WriteString(dimStyle.Render("  —  Claude account manager"))
+	if m.current != "" {
+		b.WriteString("  ")
+		b.WriteString(statusStyle.Render("● " + m.current))
+	}
 	b.WriteString("\n")
 	b.WriteString(m.renderTabs())
 	b.WriteString("\n")
@@ -100,7 +109,7 @@ func (m Model) View() string {
 		var footer string
 		switch m.tab {
 		case tabProfiles:
-			footer = "? help  Tab/1-5 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r reload  R refetch  q quit"
+			footer = "? help  Tab/1–5 tab  j/k move  Enter switch  i info  e usage  u note  d delete  c copy token  r reload  R refetch  q quit"
 		case tabConfig:
 			footer = "Tab cycle tabs  j/k move  Enter cycle  h/l prev/next  s save  r reset  q quit"
 		case tabCosts, tabActivity, tabHistory:
