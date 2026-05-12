@@ -82,25 +82,28 @@ func (m Model) updateConfigTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "enter", " ", "l", "right":
 		m.settings = cycleConfigValue(m.settings, m.configCursor, +1)
+		m.configDirty = true
 		m.refreshBodyVP()
 		return m, nil
 	case "h", "left":
 		m.settings = cycleConfigValue(m.settings, m.configCursor, -1)
+		m.configDirty = true
 		m.refreshBodyVP()
 		return m, nil
 	case "s":
 		if err := config.Save(m.settings); err != nil {
 			m.errMsg = "save config: " + err.Error()
 		} else {
+			m.configDirty = false
 			m.status = "Config saved"
 			m.errMsg = ""
 			_ = m.reload()
 		}
 		m.refreshBodyVP()
-		// Restart refetch ticker with new cadence.
 		return m, oauthTickCmd(m.settings.RefetchInterval())
 	case "r":
 		m.settings = config.Defaults()
+		m.configDirty = true
 		m.status = "Reset to defaults (press s to save)"
 		m.errMsg = ""
 		m.refreshBodyVP()

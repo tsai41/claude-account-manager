@@ -93,6 +93,7 @@ type Model struct {
 	historyErr    error
 	fetchingOAuth bool
 	lastFetched   time.Time
+	configDirty   bool
 	width, height int
 	bodyVP        viewport.Model
 	settings      config.Settings

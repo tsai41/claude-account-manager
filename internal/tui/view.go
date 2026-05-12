@@ -113,6 +113,9 @@ func (m Model) View() string {
 			footer = "? help  Tab/1–5 tab  j/k move  Enter switch  i info  e usage  u note  d delete  c copy token  r reload  R refetch  q quit"
 		case tabConfig:
 			footer = "Tab cycle tabs  j/k move  Enter cycle  h/l prev/next  s save  r reset  q quit"
+			if m.configDirty {
+				footer = errStyle.Render("⚠ unsaved") + helpStyle.Render("  —  press s to save  |  Tab/q to discard")
+			}
 		case tabCosts, tabActivity, tabHistory:
 			scroll := ""
 			if !(m.bodyVP.AtTop() && m.bodyVP.AtBottom()) {
