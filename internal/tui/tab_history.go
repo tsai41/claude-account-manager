@@ -21,7 +21,9 @@ func (m Model) viewHistory() string {
 	relevant := make([]logger.Entry, 0, len(m.history))
 	for _, e := range m.history {
 		switch e.Event {
-		case "switch.start", "switch.done", "switch.email_mismatch", "import-current", "remove", "rollback":
+		// switch.start is omitted: switch.done already records the completed
+		// switch a beat later, so showing both creates pure duplication.
+		case "switch.done", "switch.email_mismatch", "import-current", "remove", "rollback":
 			relevant = append(relevant, e)
 		}
 	}
