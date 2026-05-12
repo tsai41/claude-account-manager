@@ -17,11 +17,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		bodyH := msg.Height - 8
+		// Chrome subtracted from msg.Height:
+		//   title (1) + tab bar (1) + rule (1) + blank (1)
+		//   panel top border + top pad (2) + subtitle (1) + blank (1)
+		//   panel bottom pad + bottom border (2) + footer (1)
+		// ≈ 11 rows.
+		bodyH := msg.Height - 11
 		if bodyH < 6 {
 			bodyH = 6
 		}
-		m.bodyVP.Width = msg.Width
+		// Panel padding (1, 2) eats 4 cols horizontally; border eats 2 more.
+		bodyW := msg.Width - 6
+		if bodyW < 40 {
+			bodyW = 40
+		}
+		m.bodyVP.Width = bodyW
 		m.bodyVP.Height = bodyH
 		tableH := bodyH - 1
 		if tableH < 4 {

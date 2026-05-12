@@ -29,8 +29,6 @@ func (m Model) viewActivity() string {
 	s := m.stats
 	c := m.costs
 	var b strings.Builder
-	b.WriteString(dimStyle.Render("Scope: machine-wide (jsonl has no account binding)"))
-	b.WriteString("\n\n")
 
 	todayLines := []string{
 		cardLabel.Render(fmt.Sprintf("Today's Activity  ·  %s", time.Now().Format("Mon Jan 2"))),

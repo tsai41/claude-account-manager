@@ -30,21 +30,12 @@ func (m Model) viewConfig() string {
 	}
 	body := lipgloss.JoinVertical(lipgloss.Left, rendered...)
 
-	var footer strings.Builder
-	footer.WriteString("\n")
-	footer.WriteString(dimStyle.Render("Config file: " + os.Getenv("HOME") + "/.ccm/config.json"))
+	var note strings.Builder
 	if envOverride := strings.TrimSpace(os.Getenv("CCM_USAGE_DISPLAY")); envOverride != "" {
-		footer.WriteString("\n")
-		footer.WriteString(errStyle.Render("CCM_USAGE_DISPLAY=" + envOverride + " is overriding Usage display."))
+		note.WriteString("\n")
+		note.WriteString(errStyle.Render("CCM_USAGE_DISPLAY=" + envOverride + " is overriding Usage display."))
 	}
-
-	panel := panelStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("Settings"),
-		"",
-		body,
-		footer.String(),
-	))
-	return panel
+	return lipgloss.JoinVertical(lipgloss.Left, body, note.String())
 }
 
 func renderConfigRow(key, value, hint string, selected bool) string {

@@ -27,9 +27,6 @@ func (m Model) viewCosts() string {
 	}
 	var b strings.Builder
 
-	b.WriteString(dimStyle.Render("Scope: machine-wide · API-equivalent at list price · subscription bills are flat"))
-	b.WriteString("\n\n")
-
 	todayLines := []string{
 		cardLabel.Render(fmt.Sprintf("Today's API-equivalent cost  ·  %s", time.Now().Format("Mon Jan 2"))),
 		costAmountStyle.Render(fmt.Sprintf("$%.2f", c.Today.Cost)),

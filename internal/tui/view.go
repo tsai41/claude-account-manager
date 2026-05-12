@@ -7,6 +7,27 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+func (m Model) tabSubtitle() string {
+	switch m.tab {
+	case tabProfiles:
+		n := len(m.table.Rows())
+		cur := m.current
+		if cur == "" {
+			cur = "none"
+		}
+		return subtitleStyle.Render("Profiles") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d accounts  ·  current: %s", n, cur))
+	case tabCosts:
+		return subtitleStyle.Render("Costs") + mutedSubStyle.Render("  ·  machine-wide  ·  last 30d  ·  API-equivalent at list price")
+	case tabActivity:
+		return subtitleStyle.Render("Activity") + mutedSubStyle.Render("  ·  machine-wide  ·  from ~/.claude/projects/*.jsonl")
+	case tabHistory:
+		return subtitleStyle.Render("History") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d recent events", len(m.history)))
+	case tabConfig:
+		return subtitleStyle.Render("Config") + mutedSubStyle.Render("  ·  stored in ~/.ccm/config.json")
+	}
+	return ""
+}
+
 func (m Model) renderTabs() string {
 	var parts []string
 	for i, name := range tabNames {
@@ -58,34 +79,46 @@ func (m Model) View() string {
 	case modeDetail:
 		b.WriteString(m.viewDetail())
 	default:
+		header := m.tabSubtitle()
+		var body string
 		switch m.tab {
 		case tabProfiles:
-			b.WriteString(panelStyle.Render(m.table.View()))
-			b.WriteString("\n\n")
-			b.WriteString(helpStyle.Render("? help  Tab/1-5 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r reload  R refetch  q quit"))
+			body = m.table.View()
 		case tabConfig:
-			b.WriteString(m.viewConfig())
-			b.WriteString("\n\n")
-			b.WriteString(helpStyle.Render("Tab cycle tabs  j/k move  Enter cycle  h/l prev/next  s save  r reset  q quit"))
+			body = m.viewConfig()
 		case tabCosts, tabActivity, tabHistory:
-			b.WriteString(m.bodyVP.View())
-			b.WriteString("\n")
+			body = m.bodyVP.View()
+		}
+		panel := lipgloss.JoinVertical(lipgloss.Left,
+			header,
+			"",
+			body,
+		)
+		b.WriteString(panelStyle.Render(panel))
+		b.WriteString("\n")
+
+		var footer string
+		switch m.tab {
+		case tabProfiles:
+			footer = "? help  Tab/1-5 tab  j/k move  Enter switch  i info  e usage  u note  d delete  r reload  R refetch  q quit"
+		case tabConfig:
+			footer = "Tab cycle tabs  j/k move  Enter cycle  h/l prev/next  s save  r reset  q quit"
+		case tabCosts, tabActivity, tabHistory:
 			scroll := ""
 			if !(m.bodyVP.AtTop() && m.bodyVP.AtBottom()) {
 				pct := int(m.bodyVP.ScrollPercent() * 100)
-				marker := "·"
+				marker := "↕"
 				switch {
 				case m.bodyVP.AtTop():
 					marker = "↓"
 				case m.bodyVP.AtBottom():
 					marker = "↑"
-				default:
-					marker = "↕"
 				}
 				scroll = fmt.Sprintf("  [%s %d%%]", marker, pct)
 			}
-			b.WriteString(helpStyle.Render("Tab cycle tabs  ↑/↓ scroll  r refresh  q quit" + scroll))
+			footer = "Tab cycle tabs  ↑/↓ scroll  r refresh  q quit" + scroll
 		}
+		b.WriteString(helpStyle.Render(footer))
 	}
 
 	if m.status != "" {

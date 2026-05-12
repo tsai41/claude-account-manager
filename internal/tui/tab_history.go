@@ -12,8 +12,6 @@ func (m Model) viewHistory() string {
 		return errStyle.Render("read log error: " + m.historyErr.Error())
 	}
 	var b strings.Builder
-	b.WriteString(dimStyle.Render("Source: " + logger.LogPath()))
-	b.WriteString("\n\n")
 	if len(m.history) == 0 {
 		b.WriteString(dimStyle.Render("No log entries yet. Run `ccm import-current` or `ccm use` to populate."))
 		return b.String()

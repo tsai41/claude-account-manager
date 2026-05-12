@@ -27,6 +27,8 @@ var (
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1, 2)
+	subtitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("213"))
+	mutedSubStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	cfgKeyCol  = lipgloss.NewStyle().Width(22).Foreground(lipgloss.Color("250"))
 	cfgValCol  = lipgloss.NewStyle().Width(14).Bold(true).Foreground(lipgloss.Color("231"))
 	cfgHintCol = lipgloss.NewStyle().Width(42).Foreground(lipgloss.Color("244")).Italic(true)
