@@ -20,8 +20,8 @@ func (m Model) viewConfig() string {
 	}{
 		{"Usage display", m.settings.UsageDisplay, otherOpt(m.settings.UsageDisplay, "left", "used")},
 		{"Reset time", m.settings.ResetDisplay, otherOpt(m.settings.ResetDisplay, "relative", "absolute")},
-		{"Refetch interval", fmt.Sprintf("%ds", m.settings.RefetchSeconds), "60 / 120 / 300 / 600 / 1200 / 1800 / 3600"},
-		{"Fetch spacing", fmt.Sprintf("%ds", m.settings.FetchSpacingSeconds), "1 / 2 / 3 / 5 / 10 / 20"},
+		{"OAuth fetch interval", fmt.Sprintf("%ds", m.settings.RefetchSeconds), "60 / 120 / 300 / 600 / 1200 / 1800 / 3600"},
+		{"Per-profile delay", fmt.Sprintf("%ds", m.settings.FetchSpacingSeconds), "1 / 2 / 3 / 5 / 10 / 20"},
 	}
 
 	rendered := make([]string, 0, len(rows))
