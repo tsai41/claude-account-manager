@@ -69,6 +69,36 @@ var (
 	pctRe     = regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?)%$`)
 )
 
+// DisplayModeLeft renders remaining (100 - utilization). DisplayModeUsed renders
+// utilization as-is. Selected via CCM_USAGE_DISPLAY env (default: left).
+const (
+	DisplayModeLeft = "left"
+	DisplayModeUsed = "used"
+)
+
+// DisplayMode returns the active usage display mode from CCM_USAGE_DISPLAY,
+// defaulting to "left". Unknown values fall back to "left".
+func DisplayMode() string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("CCM_USAGE_DISPLAY"))) {
+	case DisplayModeUsed:
+		return DisplayModeUsed
+	default:
+		return DisplayModeLeft
+	}
+}
+
+// Render returns the display string for a Field given the active mode.
+// "left" inverts the percentage; "used" passes the raw consumed value through.
+func Render(f Field, mode string) string {
+	if mode == DisplayModeUsed {
+		if f.Display == "" || f.Display == "unknown" {
+			return "--"
+		}
+		return f.Display
+	}
+	return Remaining(f.Display)
+}
+
 // Remaining converts a "consumed" percentage display ("42%") into a remaining one ("58%").
 // Non-percent inputs (or the literal "unknown"/"--"/"") return "--".
 func Remaining(consumed string) string {

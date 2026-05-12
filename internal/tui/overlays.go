@@ -89,7 +89,12 @@ func (m Model) viewDetail() string {
 	} else {
 		row("Keychain backup", errStyle.Render(bkErr.Error()))
 	}
-	row("Usage left", "session "+usage.Remaining(u.Session.Display)+"  weekly "+usage.Remaining(u.Weekly.Display))
+	mode := usage.DisplayMode()
+	label := "Usage left"
+	if mode == usage.DisplayModeUsed {
+		label = "Usage used"
+	}
+	row(label, "session "+usage.Render(u.Session, mode)+"  weekly "+usage.Render(u.Weekly, mode))
 	if !u.SessionResetsAt.IsZero() || !u.WeeklyResetsAt.IsZero() {
 		row("Resets in", usage.FormatResetPair(u.SessionResetsAt, u.WeeklyResetsAt))
 	}

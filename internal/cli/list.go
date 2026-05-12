@@ -77,15 +77,20 @@ func runList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "CURRENT\tNAME\tEMAIL\tAUTH\tSESSION LEFT\tWEEKLY LEFT\tLAST USED")
+	mode := usage.DisplayMode()
+	sessionHeader, weeklyHeader := "SESSION LEFT", "WEEKLY LEFT"
+	if mode == usage.DisplayModeUsed {
+		sessionHeader, weeklyHeader = "SESSION USED", "WEEKLY USED"
+	}
+	fmt.Fprintf(w, "CURRENT\tNAME\tEMAIL\tAUTH\t%s\t%s\tLAST USED\n", sessionHeader, weeklyHeader)
 	for _, p := range profs {
 		mark := ""
 		if p.Name == st.CurrentProfile {
 			mark = "*"
 		}
 		u, _ := usage.Load(p.Name)
-		session := usage.Remaining(u.Session.Display)
-		weekly := usage.Remaining(u.Weekly.Display)
+		session := usage.Render(u.Session, mode)
+		weekly := usage.Render(u.Weekly, mode)
 		last := "--"
 		if !p.LastUsedAt.IsZero() {
 			last = p.LastUsedAt.Format("2006-01-02 15:04")

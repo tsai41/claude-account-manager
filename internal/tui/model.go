@@ -138,12 +138,17 @@ func (m *Model) reload() error {
 	st, _ := profile.LoadState()
 	m.current = st.CurrentProfile
 
+	mode := usage.DisplayMode()
+	sessionTitle, weeklyTitle := "Session Left", "Weekly Left"
+	if mode == usage.DisplayModeUsed {
+		sessionTitle, weeklyTitle = "Session Used", "Weekly Used"
+	}
 	cols := []table.Column{
 		{Title: "", Width: 2},
 		{Title: "Name", Width: 14},
 		{Title: "Email", Width: 28},
-		{Title: "Session Left", Width: 13},
-		{Title: "Weekly Left", Width: 12},
+		{Title: sessionTitle, Width: 13},
+		{Title: weeklyTitle, Width: 12},
 		{Title: "Reset (S/W)", Width: 18},
 		{Title: "Updated", Width: 10},
 	}
@@ -154,8 +159,8 @@ func (m *Model) reload() error {
 			mark = "*"
 		}
 		u, _ := usage.Load(p.Name)
-		session := usage.Remaining(u.Session.Display)
-		weekly := usage.Remaining(u.Weekly.Display)
+		session := usage.Render(u.Session, mode)
+		weekly := usage.Render(u.Weekly, mode)
 		if isStale(u.SessionResetsAt, u.UpdatedAt, 5*time.Hour) {
 			session = "--"
 		}
