@@ -33,9 +33,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.bodyVP.Width = bodyW
 		m.bodyVP.Height = bodyH
-		tableH := bodyH - 1
+		// Table height = rows + header, capped by available body.
+		// Avoids the giant empty pad below a 2-row profile list.
+		tableH := len(m.table.Rows()) + 1
 		if tableH < 4 {
 			tableH = 4
+		}
+		if tableH > bodyH-1 {
+			tableH = bodyH - 1
 		}
 		m.table.SetHeight(tableH)
 		m.refreshBodyVP()

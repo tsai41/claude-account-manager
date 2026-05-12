@@ -26,7 +26,7 @@ var (
 	panelStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("240")).
-		Padding(1, 2)
+		Padding(0, 2)
 	subtitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("213"))
 	mutedSubStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	cfgKeyCol  = lipgloss.NewStyle().Width(22).Foreground(lipgloss.Color("250"))

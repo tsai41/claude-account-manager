@@ -187,7 +187,7 @@ func (m *Model) reload() error {
 		table.WithColumns(cols),
 		table.WithRows(rows),
 		table.WithFocused(true),
-		table.WithHeight(12),
+		table.WithHeight(tableHeightFor(len(rows))),
 	)
 	s := table.DefaultStyles()
 	s.Header = s.Header.
@@ -339,6 +339,19 @@ func isStale(reset, updated time.Time, window time.Duration) bool {
 		return false
 	}
 	return now.After(updated.Add(window))
+}
+
+// tableHeightFor returns rows+header capped at 4..14 so the Profiles table
+// matches its content instead of stretching down with empty rows.
+func tableHeightFor(rows int) int {
+	h := rows + 1
+	if h < 4 {
+		return 4
+	}
+	if h > 14 {
+		return 14
+	}
+	return h
 }
 
 func relTime(t time.Time) string {
