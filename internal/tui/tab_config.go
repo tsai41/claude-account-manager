@@ -29,13 +29,17 @@ func (m Model) viewConfig() string {
 	for i, r := range rows {
 		cursor := "  "
 		if i == m.configCursor {
-			cursor = "▶ "
+			cursor = "> "
 		}
-		b.WriteString(fmt.Sprintf("%s%-20s %s   %s\n",
-			cursor,
-			cardLabel.Render(r.key),
-			cardValue.Render(r.value),
-			dimStyle.Render(r.hint)))
+		key := padRight(r.key, 18)
+		value := padRight(r.value, 8)
+		b.WriteString(cursor)
+		b.WriteString(cardLabel.Render(key))
+		b.WriteString("  ")
+		b.WriteString(cardValue.Render(value))
+		b.WriteString("   ")
+		b.WriteString(dimStyle.Render(r.hint))
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
@@ -44,8 +48,6 @@ func (m Model) viewConfig() string {
 		b.WriteString("\n")
 		b.WriteString(dimStyle.Render("CCM_USAGE_DISPLAY=" + envOverride + " is overriding Usage display."))
 	}
-	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("j/k move  Enter/Space cycle value  s save  r reset to defaults"))
 	return b.String()
 }
 
@@ -109,6 +111,13 @@ func cycleConfigValue(s config.Settings, field, dir int) config.Settings {
 		s.FetchSpacingSeconds = cycleInt(s.FetchSpacingSeconds, []int{1, 2, 3, 5, 10, 20}, dir)
 	}
 	return s
+}
+
+func padRight(s string, w int) string {
+	if len(s) >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-len(s))
 }
 
 func cycleInt(cur int, opts []int, dir int) int {

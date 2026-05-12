@@ -76,7 +76,7 @@ func (m Model) View() string {
 			}
 			footer := "Tab cycle tabs  ↑/↓ scroll  r refresh  q quit"
 			if m.tab == tabConfig {
-				footer = "Tab cycle tabs  j/k move  Enter/Space cycle value  s save  q quit"
+				footer = "Tab cycle tabs  j/k move  Enter cycle  s save  r reset  q quit"
 			}
 			b.WriteString(helpStyle.Render(footer + scroll))
 		}
