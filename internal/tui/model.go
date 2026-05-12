@@ -153,8 +153,7 @@ func (m *Model) reload() error {
 		{Title: "Email", Width: 28},
 		{Title: sessionTitle, Width: 13},
 		{Title: weeklyTitle, Width: 12},
-		{Title: "S Reset", Width: 9},
-		{Title: "W Reset", Width: 9},
+		{Title: "Reset (S/W)", Width: 18},
 		{Title: "Updated", Width: 10},
 	}
 	rows := make([]table.Row, 0, len(profs))
@@ -176,13 +175,12 @@ func (m *Model) reload() error {
 		if email == "" {
 			email = "--"
 		}
-		sReset := usage.FormatReset(u.SessionResetsAt)
-		wReset := usage.FormatReset(u.WeeklyResetsAt)
+		reset := usage.FormatResetPair(u.SessionResetsAt, u.WeeklyResetsAt)
 		updated := "--"
 		if !u.UpdatedAt.IsZero() {
 			updated = relTime(u.UpdatedAt)
 		}
-		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, sReset, wReset, updated})
+		rows = append(rows, table.Row{mark, p.Name, email, session, weekly, reset, updated})
 	}
 
 	t := table.New(
