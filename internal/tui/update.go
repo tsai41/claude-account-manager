@@ -107,14 +107,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			ok++
 		}
 		_ = m.reload()
-		if fail == 0 {
-			m.status = fmt.Sprintf("OAuth usage updated: %d profile(s)", ok)
-			m.errMsg = ""
-		} else if ok == 0 {
-			m.errMsg = "oauth fetch failed: " + lastErr
-		} else {
-			m.status = fmt.Sprintf("OAuth updated %d, %d failed", ok, fail)
+		if fail > 0 {
 			m.errMsg = lastErr
+		} else {
+			m.errMsg = ""
+		}
+		if ok > 0 && fail == 0 {
+			m.status = ""
 		}
 		return m, nil
 	}
