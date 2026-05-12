@@ -2,38 +2,58 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-var (
-	titleStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
-	helpStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	statusStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
-	errStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	tabStyle        = lipgloss.NewStyle().Padding(0, 2).Foreground(lipgloss.Color("245"))
-	activeTabStyle  = lipgloss.NewStyle().Padding(0, 2).Bold(true).Foreground(lipgloss.Color("231")).Background(lipgloss.Color("99"))
-	costAmountStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("46"))
-	subStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	cardStyle       = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 2)
-	cardLabel       = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	cardValue       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231"))
-	todayRow        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	familyOpus      = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
-	familySonnet    = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
-	familyHaiku     = lipgloss.NewStyle().Foreground(lipgloss.Color("84"))
-	familyOther     = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+// Palette — change these constants to retheme the whole TUI.
+const (
+	clrAccent   = lipgloss.Color("99")  // purple: title, active tab
+	clrSubtitle = lipgloss.Color("213") // pink: tab subtitles
+	clrSelBg    = lipgloss.Color("57")  // purple: selected row background
+	clrSelFg    = lipgloss.Color("229") // cream: selected row foreground
+	clrCursor   = lipgloss.Color("212") // pink: config cursor ▸
+	clrBorder   = lipgloss.Color("240") // border / header separator
+	clrDim      = lipgloss.Color("244") // dim / muted text
+	clrMuted    = lipgloss.Color("245") // secondary text
+	clrSub      = lipgloss.Color("250") // slightly brighter secondary
+	clrBright   = lipgloss.Color("231") // bright white: values
+	clrStatus   = lipgloss.Color("36")  // teal: status / current profile indicator
+	clrErr      = lipgloss.Color("196") // red: errors
+	clrHelp     = lipgloss.Color("241") // dark gray: footer hints
+	clrToday    = lipgloss.Color("214") // orange: today row
+	clrCost     = lipgloss.Color("46")  // green: cost amounts
+	clrOpus     = lipgloss.Color("208")
+	clrSonnet   = lipgloss.Color("75")
+	clrHaiku    = lipgloss.Color("84")
+)
 
-	// panelStyle is the single rounded container every tab uses. Padding is
-	// uniform so tabs do not jiggle when switching.
+var (
+	titleStyle      = lipgloss.NewStyle().Bold(true).Foreground(clrAccent)
+	helpStyle       = lipgloss.NewStyle().Foreground(clrHelp)
+	statusStyle     = lipgloss.NewStyle().Foreground(clrStatus)
+	errStyle        = lipgloss.NewStyle().Foreground(clrErr)
+	tabStyle        = lipgloss.NewStyle().Padding(0, 2).Foreground(clrMuted)
+	activeTabStyle  = lipgloss.NewStyle().Padding(0, 2).Bold(true).Foreground(clrBright).Background(clrAccent)
+	costAmountStyle = lipgloss.NewStyle().Bold(true).Foreground(clrCost)
+	subStyle        = lipgloss.NewStyle().Foreground(clrSub)
+	dimStyle        = lipgloss.NewStyle().Foreground(clrDim)
+	cardStyle       = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(clrBorder).Padding(0, 2)
+	cardLabel       = lipgloss.NewStyle().Foreground(clrMuted)
+	cardValue       = lipgloss.NewStyle().Bold(true).Foreground(clrBright)
+	todayRow        = lipgloss.NewStyle().Bold(true).Foreground(clrToday)
+	familyOpus      = lipgloss.NewStyle().Foreground(clrOpus)
+	familySonnet    = lipgloss.NewStyle().Foreground(clrSonnet)
+	familyHaiku     = lipgloss.NewStyle().Foreground(clrHaiku)
+	familyOther     = lipgloss.NewStyle().Foreground(clrMuted)
+
 	panelStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(0, 2)
-	subtitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("213"))
-	mutedSubStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	cfgKeyCol  = lipgloss.NewStyle().Width(22).Foreground(lipgloss.Color("250"))
-	cfgValCol  = lipgloss.NewStyle().Width(14).Bold(true).Foreground(lipgloss.Color("231"))
-	cfgHintCol = lipgloss.NewStyle().Width(42).Foreground(lipgloss.Color("244")).Italic(true)
-	cfgRowSel  = lipgloss.NewStyle().Background(lipgloss.Color("57")).Foreground(lipgloss.Color("231"))
-	cfgCursor  = lipgloss.NewStyle().Width(2).Bold(true).Foreground(lipgloss.Color("212"))
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(clrBorder).
+			Padding(0, 2)
+	subtitleStyle = lipgloss.NewStyle().Bold(true).Foreground(clrSubtitle)
+	mutedSubStyle = lipgloss.NewStyle().Foreground(clrDim)
+	cfgKeyCol     = lipgloss.NewStyle().Width(22).Foreground(clrSub)
+	cfgValCol     = lipgloss.NewStyle().Width(14).Bold(true).Foreground(clrBright)
+	cfgHintCol    = lipgloss.NewStyle().Width(42).Foreground(clrDim).Italic(true)
+	cfgRowSel     = lipgloss.NewStyle().Background(clrSelBg).Foreground(clrBright)
+	cfgCursor     = lipgloss.NewStyle().Width(2).Bold(true).Foreground(clrCursor)
 )
 
 func familyColor(name string) lipgloss.Style {

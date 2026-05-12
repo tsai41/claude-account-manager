@@ -180,9 +180,6 @@ func (m *Model) reload() error {
 		if isStale(u.WeeklyResetsAt, u.UpdatedAt, 7*24*time.Hour) {
 			weekly = "--"
 		}
-		leftMode := mode != config.DisplayUsed
-		session = colourUsage(session, leftMode)
-		weekly = colourUsage(weekly, leftMode)
 		email := format.MaskEmail(p.Email)
 		if email == "" {
 			email = "--"
@@ -204,12 +201,12 @@ func (m *Model) reload() error {
 	s := table.DefaultStyles()
 	s.Header = s.Header.
 		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(clrBorder).
 		BorderBottom(true).
 		Bold(true)
 	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("255")).
-		Background(lipgloss.Color("237")).
+		Foreground(clrSelFg).
+		Background(clrSelBg).
 		Bold(true)
 	t.SetStyles(s)
 	m.table = t
