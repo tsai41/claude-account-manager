@@ -58,8 +58,8 @@ func runExec(name string, argv []string) error {
 	}
 
 	cfgDir := paths.ProfileConfigDir(name)
-	if err := os.MkdirAll(cfgDir, 0o700); err != nil {
-		return fmt.Errorf("create config dir %s: %w", cfgDir, err)
+	if err := snapshot.EnsureConfigDir(cfgDir, name); err != nil {
+		return fmt.Errorf("prepare config dir %s: %w", cfgDir, err)
 	}
 
 	binPath, err := exec.LookPath(argv[0])
