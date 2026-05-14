@@ -43,10 +43,10 @@ func TestPatternMatchesBoundary(t *testing.T) {
 
 func TestBindReplacesExistingPattern(t *testing.T) {
 	var m Map
-	if err := m.Bind("a", "/x"); err != nil {
+	if _, err := m.Bind("a", "/x"); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Bind("b", "/x"); err != nil {
+	if _, err := m.Bind("b", "/x"); err != nil {
 		t.Fatal(err)
 	}
 	if len(m.Bindings) != 1 {
@@ -59,7 +59,7 @@ func TestBindReplacesExistingPattern(t *testing.T) {
 
 func TestUnbind(t *testing.T) {
 	var m Map
-	_ = m.Bind("p", "/x")
+	_, _ = m.Bind("p", "/x")
 	if !m.Unbind("/x") {
 		t.Errorf("Unbind(/x) returned false, want true")
 	}
