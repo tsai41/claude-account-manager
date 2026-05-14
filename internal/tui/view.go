@@ -181,6 +181,14 @@ func (m Model) viewProfiles() string {
 	sessionStyle := lipgloss.NewStyle().Width(sessionW)
 	weeklyStyle := lipgloss.NewStyle().Width(weeklyW)
 
+	// Group bindings by profile so each profile row can render its own dirs below.
+	dirsByProfile := make(map[string][]string, len(m.bindings))
+	for _, bind := range m.bindings {
+		dirsByProfile[bind.Profile] = append(dirsByProfile[bind.Profile], collapseHome(bind.Pattern))
+	}
+	dirGlyphStyle := lipgloss.NewStyle().Foreground(clrDim)
+	dirPathStyle := lipgloss.NewStyle().Foreground(clrDim).Italic(true)
+
 	for i, row := range m.profileRows {
 		selected := i == m.profileCursor
 		glyph := " "
@@ -196,31 +204,13 @@ func (m Model) viewProfiles() string {
 			sessionStyle.Render(row[3]) + " " +
 			weeklyStyle.Render(row[4])
 		b.WriteString(line + "\n")
-	}
 
-	if section := m.renderBindingsSection(); section != "" {
-		b.WriteString("\n")
-		b.WriteString(section)
-	}
-	return b.String()
-}
-
-// renderBindingsSection returns a compact "Bound directories" list grouped by
-// profile, or an empty string when no bindings exist. It is rendered below the
-// profile table on the Profiles tab so the user can see at a glance which
-// folders are wired to which account via `ccm bind`.
-func (m Model) renderBindingsSection() string {
-	if len(m.bindings) == 0 {
-		return ""
-	}
-	hdrStyle := lipgloss.NewStyle().Bold(true).Foreground(clrBright)
-	profileColStyle := lipgloss.NewStyle().Width(12).Foreground(clrStatus)
-	arrowStyle := lipgloss.NewStyle().Foreground(clrDim)
-
-	var b strings.Builder
-	b.WriteString(hdrStyle.Render("Bound directories") + "\n")
-	for _, bind := range m.bindings {
-		b.WriteString("  " + profileColStyle.Render(bind.Profile) + arrowStyle.Render("← ") + collapseHome(bind.Pattern) + "\n")
+		// Indent each bound directory beneath its profile row.
+		// Indent depth lines up roughly under the email column for visual grouping.
+		indent := strings.Repeat(" ", cursorW+markW+nameW+1)
+		for _, dir := range dirsByProfile[row[1]] {
+			b.WriteString(indent + dirGlyphStyle.Render("↳ ") + dirPathStyle.Render(dir) + "\n")
+		}
 	}
 	return b.String()
 }
