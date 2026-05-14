@@ -87,22 +87,23 @@ func (m Map) Resolve(dir string) string {
 }
 
 // Bind adds or replaces a binding for the (canonicalized) pattern.
-func (m *Map) Bind(profile, pattern string) error {
+// Returns the canonicalized pattern actually written.
+func (m *Map) Bind(profile, pattern string) (string, error) {
 	if profile == "" {
-		return errors.New("profile required")
+		return "", errors.New("profile required")
 	}
 	pattern = canonicalize(pattern)
 	if pattern == "" {
-		return errors.New("pattern required")
+		return "", errors.New("pattern required")
 	}
 	for i := range m.Bindings {
 		if m.Bindings[i].Pattern == pattern {
 			m.Bindings[i].Profile = profile
-			return nil
+			return pattern, nil
 		}
 	}
 	m.Bindings = append(m.Bindings, Binding{Profile: profile, Pattern: pattern})
-	return nil
+	return pattern, nil
 }
 
 // Unbind removes the binding for pattern. Returns false if not found.

@@ -27,13 +27,14 @@ func newBindCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := m.Bind(name, dir); err != nil {
+			pattern, err := m.Bind(name, dir)
+			if err != nil {
 				return err
 			}
 			if err := m.Save(); err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stdout, "Bound %s -> %s\n", m.Bindings[len(m.Bindings)-1].Pattern, name)
+			fmt.Fprintf(os.Stdout, "Bound %s -> %s\n", pattern, name)
 			return nil
 		},
 	}
