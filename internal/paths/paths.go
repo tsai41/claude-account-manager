@@ -26,6 +26,10 @@ func ProfileSnapshotsDir(name string) string {
 	return filepath.Join(ProfileDir(name), "snapshots")
 }
 
+// ConfigsDir is the root for per-profile CLAUDE_CONFIG_DIR targets used by `ccm exec`.
+func ConfigsDir() string                  { return filepath.Join(CCMRoot(), "configs") }
+func ProfileConfigDir(name string) string { return filepath.Join(ConfigsDir(), name) }
+
 func EnsureRoot() error {
 	for _, d := range []string{CCMRoot(), ProfilesDir(), BackupsDir(), LogsDir()} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
