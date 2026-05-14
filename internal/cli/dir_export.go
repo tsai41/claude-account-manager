@@ -46,7 +46,7 @@ func newDirExportCmd() *cobra.Command {
 				return nil
 			}
 			cfgDir := paths.ProfileConfigDir(name)
-			if err := os.MkdirAll(cfgDir, 0o700); err != nil {
+			if err := snapshot.EnsureConfigDir(cfgDir, name); err != nil {
 				return err
 			}
 			fmt.Fprintf(out, "export CLAUDE_CONFIG_DIR=%s\n", shellQuote(cfgDir))
