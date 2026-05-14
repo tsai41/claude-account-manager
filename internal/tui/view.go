@@ -2,12 +2,16 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tsai41/claude-account-manager/internal/format"
 )
+
+// osUserHome wraps os.UserHomeDir for test substitution if ever needed.
+var osUserHome = os.UserHomeDir
 
 func (m Model) tabSubtitle() string {
 	switch m.tab {
@@ -193,7 +197,45 @@ func (m Model) viewProfiles() string {
 			weeklyStyle.Render(row[4])
 		b.WriteString(line + "\n")
 	}
+
+	if section := m.renderBindingsSection(); section != "" {
+		b.WriteString("\n")
+		b.WriteString(section)
+	}
 	return b.String()
+}
+
+// renderBindingsSection returns a compact "Bound directories" list grouped by
+// profile, or an empty string when no bindings exist. It is rendered below the
+// profile table on the Profiles tab so the user can see at a glance which
+// folders are wired to which account via `ccm bind`.
+func (m Model) renderBindingsSection() string {
+	if len(m.bindings) == 0 {
+		return ""
+	}
+	hdrStyle := lipgloss.NewStyle().Bold(true).Foreground(clrBright)
+	profileColStyle := lipgloss.NewStyle().Width(12).Foreground(clrStatus)
+	arrowStyle := lipgloss.NewStyle().Foreground(clrDim)
+
+	var b strings.Builder
+	b.WriteString(hdrStyle.Render("Bound directories") + "\n")
+	for _, bind := range m.bindings {
+		b.WriteString("  " + profileColStyle.Render(bind.Profile) + arrowStyle.Render("← ") + collapseHome(bind.Pattern) + "\n")
+	}
+	return b.String()
+}
+
+// collapseHome rewrites $HOME prefix as "~" for compact display.
+func collapseHome(p string) string {
+	if home, err := osUserHome(); err == nil && home != "" {
+		if p == home {
+			return "~"
+		}
+		if strings.HasPrefix(p, home+"/") {
+			return "~" + p[len(home):]
+		}
+	}
+	return p
 }
 
 func padRight(s string, w int) string {
