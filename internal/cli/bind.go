@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tsai41/claude-account-manager/internal/dirmap"
+	"github.com/tsai41/claude-account-manager/internal/logger"
 	"github.com/tsai41/claude-account-manager/internal/profile"
 )
 
@@ -34,6 +35,7 @@ func newBindCmd() *cobra.Command {
 			if err := m.Save(); err != nil {
 				return err
 			}
+			logger.Info("bind", name, "directory bound", map[string]any{"pattern": pattern})
 			fmt.Fprintf(os.Stdout, "Bound %s -> %s\n", pattern, name)
 			return nil
 		},
@@ -56,6 +58,7 @@ func newUnbindCmd() *cobra.Command {
 			if err := m.Save(); err != nil {
 				return err
 			}
+			logger.Info("unbind", "", "directory unbound", map[string]any{"pattern": args[0]})
 			fmt.Println("Unbound.")
 			return nil
 		},
