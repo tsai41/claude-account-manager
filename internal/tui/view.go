@@ -35,6 +35,8 @@ func (m Model) tabSubtitle() string {
 		return subtitleStyle.Render("History") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d recent events", len(m.history)))
 	case tabConfig:
 		return subtitleStyle.Render("Config") + mutedSubStyle.Render("  ·  stored in ~/.ccm/config.json")
+	case tabBindings:
+		return subtitleStyle.Render("Bindings") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d directory -> profile rules", len(m.bindings)))
 	}
 	return ""
 }
@@ -78,6 +80,10 @@ func (m Model) View() string {
 		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(statusStyle.Render(fmt.Sprintf("Switch to profile %q? (Y/n) ", m.confirmSwitch)))
+	case modeConfirmUnbind:
+		b.WriteString(m.viewBindings())
+		b.WriteString("\n\n")
+		b.WriteString(errStyle.Render(fmt.Sprintf("Unbind %q? (y/N) ", m.unbindPattern)))
 	case modeEditNote:
 		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
@@ -102,6 +108,8 @@ func (m Model) View() string {
 			body = m.viewProfiles()
 		case tabConfig:
 			body = m.viewConfig()
+		case tabBindings:
+			body = m.viewBindings()
 		case tabCosts, tabActivity, tabHistory:
 			body = m.bodyVP.View()
 		}
@@ -122,6 +130,8 @@ func (m Model) View() string {
 			if m.configDirty {
 				footer = errStyle.Render("⚠ unsaved") + helpStyle.Render("  —  press s to save  |  Tab/q to discard")
 			}
+		case tabBindings:
+			footer = "j/k move  d unbind  r reload  q quit  —  use `ccm bind <profile> <dir>` to add"
 		case tabCosts, tabActivity, tabHistory:
 			scroll := ""
 			if !(m.bodyVP.AtTop() && m.bodyVP.AtBottom()) {
@@ -159,8 +169,8 @@ func (m Model) viewProfiles() string {
 		markW    = 2 // * + pad
 		nameW    = 15
 		emailW   = 30
-		sessionW = 10
-		weeklyW  = 10
+		sessionW = 16
+		weeklyW  = 16
 	)
 	totalW := cursorW + markW + nameW + 1 + emailW + 1 + sessionW + 1 + weeklyW
 
@@ -181,14 +191,6 @@ func (m Model) viewProfiles() string {
 	sessionStyle := lipgloss.NewStyle().Width(sessionW)
 	weeklyStyle := lipgloss.NewStyle().Width(weeklyW)
 
-	// Group bindings by profile so each profile row can render its own dirs below.
-	dirsByProfile := make(map[string][]string, len(m.bindings))
-	for _, bind := range m.bindings {
-		dirsByProfile[bind.Profile] = append(dirsByProfile[bind.Profile], collapseHome(bind.Pattern))
-	}
-	dirGlyphStyle := lipgloss.NewStyle().Foreground(clrDim)
-	dirPathStyle := lipgloss.NewStyle().Foreground(clrDim).Italic(true)
-
 	for i, row := range m.profileRows {
 		selected := i == m.profileCursor
 		glyph := " "
@@ -204,13 +206,6 @@ func (m Model) viewProfiles() string {
 			sessionStyle.Render(row[3]) + " " +
 			weeklyStyle.Render(row[4])
 		b.WriteString(line + "\n")
-
-		// Indent each bound directory beneath its profile row.
-		// Indent depth lines up roughly under the email column for visual grouping.
-		indent := strings.Repeat(" ", cursorW+markW+nameW+1)
-		for _, dir := range dirsByProfile[row[1]] {
-			b.WriteString(indent + dirGlyphStyle.Render("↳ ") + dirPathStyle.Render(dir) + "\n")
-		}
 	}
 	return b.String()
 }
