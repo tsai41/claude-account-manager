@@ -150,18 +150,32 @@ func (m Model) View() string {
 func (m Model) viewProfiles() string {
 	var b strings.Builder
 
-	hdrStyle := lipgloss.NewStyle().Bold(true).Foreground(clrBright)
-	b.WriteString(fmt.Sprintf("   %-14s  %-28s  %-18s  %s\n",
-		hdrStyle.Render("Name"),
-		hdrStyle.Render("Email"),
-		hdrStyle.Render("Session"),
-		hdrStyle.Render("Weekly")))
-	b.WriteString(dimStyle.Render(strings.Repeat("─", 86)) + "\n")
+	const (
+		cursorW  = 2 // ▸ + pad
+		markW    = 2 // * + pad
+		nameW    = 15
+		emailW   = 30
+		sessionW = 10
+		weeklyW  = 10
+	)
+	totalW := cursorW + markW + nameW + 1 + emailW + 1 + sessionW + 1 + weeklyW
 
-	cursorStyle := lipgloss.NewStyle().Width(2).Bold(true).Foreground(clrCursor)
-	markStyle := lipgloss.NewStyle().Width(2).Foreground(clrStatus)
-	nameBase := lipgloss.NewStyle().Width(15)
-	emailStyle := lipgloss.NewStyle().Width(30).Foreground(clrDim)
+	hdrStyle := lipgloss.NewStyle().Bold(true).Foreground(clrBright)
+	// header indent matches cursor(2) + mark(2) on data rows
+	b.WriteString(strings.Repeat(" ", cursorW+markW))
+	b.WriteString(hdrStyle.Render(padRight("Name", nameW)) + " ")
+	b.WriteString(hdrStyle.Render(padRight("Email", emailW)) + " ")
+	b.WriteString(hdrStyle.Render(padRight("Session", sessionW)) + " ")
+	b.WriteString(hdrStyle.Render("Weekly"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render(strings.Repeat("─", totalW)) + "\n")
+
+	cursorStyle := lipgloss.NewStyle().Width(cursorW).Bold(true).Foreground(clrCursor)
+	markStyle := lipgloss.NewStyle().Width(markW).Foreground(clrStatus)
+	nameBase := lipgloss.NewStyle().Width(nameW)
+	emailStyle := lipgloss.NewStyle().Width(emailW).Foreground(clrDim)
+	sessionStyle := lipgloss.NewStyle().Width(sessionW)
+	weeklyStyle := lipgloss.NewStyle().Width(weeklyW)
 
 	for i, row := range m.profileRows {
 		selected := i == m.profileCursor
@@ -175,8 +189,16 @@ func (m Model) viewProfiles() string {
 			markStyle.Render(row[0]) +
 			nameStyle.Render(row[1]) + " " +
 			emailStyle.Render(row[2]) + " " +
-			row[3] + "  " + row[4]
+			sessionStyle.Render(row[3]) + " " +
+			weeklyStyle.Render(row[4])
 		b.WriteString(line + "\n")
 	}
 	return b.String()
+}
+
+func padRight(s string, w int) string {
+	if len(s) >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-len(s))
 }
