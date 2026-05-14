@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tsai41/claude-account-manager/internal/config"
+	"github.com/tsai41/claude-account-manager/internal/dirmap"
 	"github.com/tsai41/claude-account-manager/internal/format"
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
 	"github.com/tsai41/claude-account-manager/internal/keychain"
@@ -96,6 +97,7 @@ type Model struct {
 	configCursor  int
 	profiles      []profile.Profile
 	usageCache    map[string]usage.Record
+	bindings      []dirmap.Binding
 }
 
 type costsLoadedMsg struct {
@@ -159,6 +161,12 @@ func (m *Model) reload() error {
 	m.profileRows = buildProfileRows(profs, st.CurrentProfile, m.settings, m.usageCache)
 	if m.profileCursor >= len(m.profileRows) {
 		m.profileCursor = max(0, len(m.profileRows)-1)
+	}
+
+	if dm, derr := dirmap.Load(); derr == nil {
+		m.bindings = dm.Bindings
+	} else {
+		m.bindings = nil
 	}
 	return nil
 }
