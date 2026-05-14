@@ -49,9 +49,10 @@ const (
 	tabActivity
 	tabHistory
 	tabConfig
+	tabBindings
 )
 
-var tabNames = []string{"Profiles", "Costs", "Activity", "History", "Config"}
+var tabNames = []string{"Profiles", "Costs", "Activity", "History", "Config", "Bindings"}
 
 type viewMode int
 
@@ -63,6 +64,7 @@ const (
 	modeEditUsage
 	modeHelp
 	modeDetail
+	modeConfirmUnbind
 )
 
 type Model struct {
@@ -95,9 +97,11 @@ type Model struct {
 	bodyVP        viewport.Model
 	settings      config.Settings
 	configCursor  int
-	profiles      []profile.Profile
-	usageCache    map[string]usage.Record
-	bindings      []dirmap.Binding
+	profiles        []profile.Profile
+	usageCache      map[string]usage.Record
+	bindings        []dirmap.Binding
+	bindingsCursor  int
+	unbindPattern   string
 }
 
 type costsLoadedMsg struct {
