@@ -9,8 +9,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/tsai41/claude-account-manager/internal/dirmap"
 	"github.com/tsai41/claude-account-manager/internal/jsonlscan"
 	"github.com/tsai41/claude-account-manager/internal/keychain"
+	"github.com/tsai41/claude-account-manager/internal/logger"
 	"github.com/tsai41/claude-account-manager/internal/switcher"
 	"github.com/tsai41/claude-account-manager/internal/usage"
 )
@@ -59,16 +61,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.bodyVP.Width = bodyW
 		m.bodyVP.Height = bodyH
-		// Table height = rows + header, capped by available body.
-		// Avoids the giant empty pad below a 2-row profile list.
-		tableH := len(m.table.Rows()) + 1
-		if tableH < 4 {
-			tableH = 4
-		}
-		if tableH > bodyH-1 {
-			tableH = bodyH - 1
-		}
-		m.table.SetHeight(tableH)
 		m.refreshBodyVP()
 		return m, nil
 	case costsLoadedMsg:
@@ -173,6 +165,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refreshBodyVP()
 				return m, nil
 			}
+		case "6":
+			if m.mode == modeTable {
+				m.tab = tabBindings
+				m.refreshBodyVP()
+				return m, nil
+			}
 		}
 	}
 
@@ -181,6 +179,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateConfirmDelete(msg)
 	case modeConfirmSwitch:
 		return m.updateConfirmSwitch(msg)
+	case modeConfirmUnbind:
+		return m.updateConfirmUnbind(msg)
 	case modeEditNote:
 		return m.updateEditNote(msg)
 	case modeEditUsage:
@@ -208,6 +208,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateHistoryTab(msg)
 	case tabConfig:
 		return m.updateConfigTab(msg)
+	case tabBindings:
+		return m.updateBindingsTab(msg)
 	}
 	return m, nil
 }
@@ -218,10 +220,14 @@ func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		case "j", "down":
-			m.table.MoveDown(1)
+			if m.profileCursor < len(m.profileRows)-1 {
+				m.profileCursor++
+			}
 			return m, nil
 		case "k", "up":
-			m.table.MoveUp(1)
+			if m.profileCursor > 0 {
+				m.profileCursor--
+			}
 			return m, nil
 		case "enter":
 			name := m.currentRowName()
@@ -328,9 +334,7 @@ func (m Model) updateProfilesTab(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	var cmd tea.Cmd
-	m.table, cmd = m.table.Update(msg)
-	return m, cmd
+	return m, nil
 }
 
 func (m Model) updateCostsTab(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -490,4 +494,74 @@ func (m Model) updateEditNote(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.noteIn, cmd = m.noteIn.Update(msg)
 	return m, cmd
+}
+
+func (m Model) updateBindingsTab(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch k.String() {
+		case "q", "ctrl+c", "esc":
+			return m, tea.Quit
+		case "j", "down":
+			m.bindingsCursor++
+			m.clampBindingsCursor()
+			return m, nil
+		case "k", "up":
+			m.bindingsCursor--
+			m.clampBindingsCursor()
+			return m, nil
+		case "r":
+			if err := m.reload(); err != nil {
+				m.errMsg = err.Error()
+			} else {
+				m.status = "Refreshed"
+				m.errMsg = ""
+			}
+			m.clampBindingsCursor()
+			return m, nil
+		case "d":
+			if m.bindingsCursor < 0 || m.bindingsCursor >= len(m.bindings) {
+				return m, nil
+			}
+			m.unbindPattern = m.bindings[m.bindingsCursor].Pattern
+			m.mode = modeConfirmUnbind
+			m.errMsg = ""
+			m.status = ""
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+func (m Model) updateConfirmUnbind(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch strings.ToLower(k.String()) {
+		case "y":
+			pattern := m.unbindPattern
+			m.unbindPattern = ""
+			m.mode = modeTable
+			dm, err := dirmap.Load()
+			if err != nil {
+				m.errMsg = err.Error()
+				return m, nil
+			}
+			if !dm.Unbind(pattern) {
+				m.errMsg = "binding not found: " + pattern
+				return m, nil
+			}
+			if err := dm.Save(); err != nil {
+				m.errMsg = err.Error()
+				return m, nil
+			}
+			logger.Info("unbind", "", "directory unbound", map[string]any{"pattern": pattern})
+			m.status = "Unbound " + pattern
+			_ = m.reload()
+			m.clampBindingsCursor()
+			return m, nil
+		case "n", "esc", "q":
+			m.unbindPattern = ""
+			m.mode = modeTable
+			return m, nil
+		}
+	}
+	return m, nil
 }

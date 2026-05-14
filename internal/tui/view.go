@@ -2,12 +2,16 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/tsai41/claude-account-manager/internal/format"
 )
+
+// osUserHome wraps os.UserHomeDir for test substitution if ever needed.
+var osUserHome = os.UserHomeDir
 
 func (m Model) tabSubtitle() string {
 	switch m.tab {
@@ -31,6 +35,8 @@ func (m Model) tabSubtitle() string {
 		return subtitleStyle.Render("History") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d recent events", len(m.history)))
 	case tabConfig:
 		return subtitleStyle.Render("Config") + mutedSubStyle.Render("  ·  stored in ~/.ccm/config.json")
+	case tabBindings:
+		return subtitleStyle.Render("Bindings") + mutedSubStyle.Render(fmt.Sprintf("  ·  %d directory -> profile rules", len(m.bindings)))
 	}
 	return ""
 }
@@ -67,20 +73,24 @@ func (m Model) View() string {
 
 	switch m.mode {
 	case modeConfirmDelete:
-		b.WriteString(m.table.View())
+		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(errStyle.Render(fmt.Sprintf("Delete profile %q? (y/N) ", m.delFor)))
 	case modeConfirmSwitch:
-		b.WriteString(m.table.View())
+		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(statusStyle.Render(fmt.Sprintf("Switch to profile %q? (Y/n) ", m.confirmSwitch)))
+	case modeConfirmUnbind:
+		b.WriteString(m.viewBindings())
+		b.WriteString("\n\n")
+		b.WriteString(errStyle.Render(fmt.Sprintf("Unbind %q? (y/N) ", m.unbindPattern)))
 	case modeEditNote:
-		b.WriteString(m.table.View())
+		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(fmt.Sprintf("Edit note for %s (Enter to save, Esc to cancel):\n", m.noteFor))
 		b.WriteString(m.noteIn.View())
 	case modeEditUsage:
-		b.WriteString(m.table.View())
+		b.WriteString(m.viewProfiles())
 		b.WriteString("\n\n")
 		b.WriteString(fmt.Sprintf("Edit usage for %s (Enter to save, Esc to cancel):\n", m.usageFor))
 		b.WriteString(m.usageIn.View())
@@ -95,9 +105,11 @@ func (m Model) View() string {
 		var body string
 		switch m.tab {
 		case tabProfiles:
-			body = m.table.View()
+			body = m.viewProfiles()
 		case tabConfig:
 			body = m.viewConfig()
+		case tabBindings:
+			body = m.viewBindings()
 		case tabCosts, tabActivity, tabHistory:
 			body = m.bodyVP.View()
 		}
@@ -118,6 +130,8 @@ func (m Model) View() string {
 			if m.configDirty {
 				footer = errStyle.Render("⚠ unsaved") + helpStyle.Render("  —  press s to save  |  Tab/q to discard")
 			}
+		case tabBindings:
+			footer = "j/k move  d unbind  r reload  q quit  —  use `ccm bind <profile> <dir>` to add"
 		case tabCosts, tabActivity, tabHistory:
 			scroll := ""
 			if !(m.bodyVP.AtTop() && m.bodyVP.AtBottom()) {
@@ -145,4 +159,73 @@ func (m Model) View() string {
 		b.WriteString(errStyle.Render("error: " + m.errMsg))
 	}
 	return b.String()
+}
+
+func (m Model) viewProfiles() string {
+	var b strings.Builder
+
+	const (
+		cursorW  = 2 // ▸ + pad
+		markW    = 2 // * + pad
+		nameW    = 15
+		emailW   = 30
+		sessionW = 16
+		weeklyW  = 16
+	)
+	totalW := cursorW + markW + nameW + 1 + emailW + 1 + sessionW + 1 + weeklyW
+
+	hdrStyle := lipgloss.NewStyle().Bold(true).Foreground(clrBright)
+	// header indent matches cursor(2) + mark(2) on data rows
+	b.WriteString(strings.Repeat(" ", cursorW+markW))
+	b.WriteString(hdrStyle.Render(padRight("Name", nameW)) + " ")
+	b.WriteString(hdrStyle.Render(padRight("Email", emailW)) + " ")
+	b.WriteString(hdrStyle.Render(padRight("Session", sessionW)) + " ")
+	b.WriteString(hdrStyle.Render("Weekly"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render(strings.Repeat("─", totalW)) + "\n")
+
+	cursorStyle := lipgloss.NewStyle().Width(cursorW).Bold(true).Foreground(clrCursor)
+	markStyle := lipgloss.NewStyle().Width(markW).Foreground(clrStatus)
+	nameBase := lipgloss.NewStyle().Width(nameW)
+	emailStyle := lipgloss.NewStyle().Width(emailW).Foreground(clrDim)
+	sessionStyle := lipgloss.NewStyle().Width(sessionW)
+	weeklyStyle := lipgloss.NewStyle().Width(weeklyW)
+
+	for i, row := range m.profileRows {
+		selected := i == m.profileCursor
+		glyph := " "
+		nameStyle := nameBase
+		if selected {
+			glyph = "▸"
+			nameStyle = nameBase.Foreground(clrCursor).Bold(true)
+		}
+		line := cursorStyle.Render(glyph) +
+			markStyle.Render(row[0]) +
+			nameStyle.Render(row[1]) + " " +
+			emailStyle.Render(row[2]) + " " +
+			sessionStyle.Render(row[3]) + " " +
+			weeklyStyle.Render(row[4])
+		b.WriteString(line + "\n")
+	}
+	return b.String()
+}
+
+// collapseHome rewrites $HOME prefix as "~" for compact display.
+func collapseHome(p string) string {
+	if home, err := osUserHome(); err == nil && home != "" {
+		if p == home {
+			return "~"
+		}
+		if strings.HasPrefix(p, home+"/") {
+			return "~" + p[len(home):]
+		}
+	}
+	return p
+}
+
+func padRight(s string, w int) string {
+	if len(s) >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-len(s))
 }

@@ -40,6 +40,12 @@ func NewRoot() *cobra.Command {
 		newVersionCmd(),
 		newCostCmd(),
 		newPricingCmd(),
+		newExecCmd(),
+		newBindCmd(),
+		newUnbindCmd(),
+		newBindingsCmd(),
+		newDirExportCmd(),
+		newShellInitCmd(),
 	)
 	return root
 }

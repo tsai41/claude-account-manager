@@ -84,6 +84,41 @@ ccm use work                  # CLI switch (safe-merge by default)
 | `ccm tui` | interactive TUI |
 | `ccm version` | version info |
 | `ccm completion <bash\|zsh\|fish\|powershell>` | print shell completion script |
+| `ccm exec <name> -- <cmd> [args...]` | run a command with isolated `CLAUDE_CONFIG_DIR` + `CLAUDE_CODE_OAUTH_TOKEN`; safe to run concurrently across profiles |
+| `ccm bind <name> <dir>` | bind a directory (and its subtree) to a profile for shell `chpwd` routing |
+| `ccm unbind <dir>` | remove a directory binding |
+| `ccm bindings` | list directory → profile bindings |
+| `ccm shell-init <zsh\|bash>` | print shell hook code that auto-applies bindings on every `cd` |
+
+## Per-directory profile routing
+
+`ccm use` swaps the global Keychain entry — fine for single-account days, but two
+concurrent Claude Code sessions on different profiles race at OAuth-refresh time.
+
+`ccm exec` and `ccm bind` solve that with a different mechanism: per-process
+`CLAUDE_CONFIG_DIR` + `CLAUDE_CODE_OAUTH_TOKEN` env vars. Each invocation gets
+its own config dir under `~/.ccm/configs/<profile>/` and authenticates via the
+snapshot's OAuth access token, bypassing the shared Keychain entry entirely.
+
+```sh
+# one-shot
+ccm exec team -- claude
+ccm exec max  -- claude --some-flag
+
+# auto-route by directory
+ccm bind team ~/go/src/gobe-vault
+ccm bind team ~/work/api
+eval "$(ccm shell-init zsh)" >> ~/.zshrc   # add to your shell rc, then re-source
+cd ~/go/src/gobe-vault && claude            # uses team profile transparently
+cd ~/personal-thing      && claude          # falls back to global Keychain default
+```
+
+Limitations of the MVP:
+
+- Access tokens have a short TTL (≈ a few hours). Once expired, `ccm exec`
+  warns and `dir-export` falls back to the global Keychain. Refreshing via the
+  stored `refreshToken` is on the roadmap.
+- `ccm bind` patterns are absolute-path prefixes, not globs.
 
 ## Shell completion
 
