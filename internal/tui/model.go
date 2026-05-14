@@ -157,6 +157,14 @@ func (m *Model) reload() error {
 	if m.usageCache == nil {
 		m.usageCache = make(map[string]usage.Record)
 	}
+	// Hydrate cache from on-disk usage.json for each profile. Without this the
+	// session/weekly columns stayed at "--" until an OAuth fetch round-tripped
+	// even though valid records already lived on disk.
+	for _, p := range profs {
+		if u, err := usage.Load(p.Name); err == nil {
+			m.usageCache[p.Name] = u
+		}
+	}
 
 	m.profileRows = buildProfileRows(profs, st.CurrentProfile, m.settings, m.usageCache)
 	if m.profileCursor >= len(m.profileRows) {
